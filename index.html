@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Baukosten-Tracker</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,sans-serif;background:#f5f5f3;color:#1a1a18;min-height:100vh}
+:root{--accent:#2563eb;--accent-light:#eff6ff;--border:#e2e0d8;--card:#fff;--muted:#6b6b68;--danger:#dc2626;--success:#16a34a;--warn:#d97706}
+header{background:#fff;border-bottom:1px solid var(--border);padding:0 16px;display:flex;align-items:center;justify-content:space-between;height:56px;position:sticky;top:0;z-index:100}
+header h1{font-size:16px;font-weight:600}
+.realtime-dot{width:8px;height:8px;border-radius:50%;background:#ccc;display:inline-block;margin-right:6px;transition:background .3s}
+.realtime-dot.connected{background:var(--success)}
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);background:#fff;overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:none;padding:10px 16px;font-size:13px;font-weight:500;color:var(--muted);border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.page{display:none;padding:16px}
+.page.active{display:block}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px}
+.card-title{font-size:14px;font-weight:600;margin-bottom:12px}
+label{font-size:13px;color:var(--muted);display:block;margin-bottom:4px;margin-top:10px}
+label:first-child{margin-top:0}
+input,select,textarea{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:#fff;color:#1a1a18;outline:none;transition:border-color .15s}
+input:focus,select:focus{border-color:var(--accent)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 16px;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;border:none;transition:all .15s}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:#1d4ed8}
+.btn-secondary{background:#fff;color:#1a1a18;border:1px solid var(--border)}
+.btn-secondary:hover{background:#f5f5f3}
+.btn-danger{background:#fff;color:var(--danger);border:1px solid #fecaca}
+.btn-sm{padding:6px 10px;font-size:12px}
+.btn-full{width:100%}
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.stat{background:#f8f8f6;border-radius:10px;padding:12px}
+.stat-label{font-size:11px;color:var(--muted);margin-bottom:4px}
+.stat-val{font-size:20px;font-weight:600}
+.stat-val.blue{color:var(--accent)}
+.stat-val.green{color:var(--success)}
+.stat-val.amber{color:var(--warn)}
+.invoice-item{border-bottom:1px solid var(--border);padding:10px 0;display:flex;align-items:flex-start;gap:10px}
+.invoice-item:last-child{border-bottom:none}
+.invoice-info{flex:1;min-width:0}
+.invoice-info .name{font-size:14px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.invoice-info .sub{font-size:12px;color:var(--muted)}
+.invoice-amount{font-size:15px;font-weight:600;text-align:right;white-space:nowrap}
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500}
+.badge-arbeit{background:#fef3c7;color:#92400e}
+.badge-material{background:#dbeafe;color:#1e40af}
+.project-item{padding:12px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;transition:border-color .15s}
+.project-item:hover,.project-item.selected{border-color:var(--accent);background:var(--accent-light)}
+.project-item .pname{font-weight:500;font-size:14px}
+.project-item .psub{font-size:12px;color:var(--muted)}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;align-items:flex-end;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{background:#fff;border-radius:16px 16px 0 0;padding:20px;width:100%;max-width:500px;max-height:90vh;overflow-y:auto}
+.modal-title{font-size:16px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between}
+.ai-indicator{display:flex;align-items:center;gap:6px;padding:8px 12px;background:#eff6ff;border-radius:8px;font-size:12px;color:var(--accent);margin-bottom:12px}
+.ai-indicator.loading{animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.pill-select{display:flex;gap:8px}
+.pill{padding:7px 14px;border-radius:20px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:#fff;color:var(--muted);transition:all .15s}
+.pill.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.trip-item{border-bottom:1px solid var(--border);padding:10px 0;display:flex;align-items:flex-start;gap:10px}
+.trip-item:last-child{border-bottom:none}
+.driver-badge{width:32px;height:32px;border-radius:50%;background:var(--accent-light);color:var(--accent);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.driver-badge.yl{background:#fdf4ff;color:#7e22ce}
+.gps-btn{display:flex;align-items:center;gap:8px;padding:12px;background:var(--accent-light);border:1px solid #bfdbfe;border-radius:10px;cursor:pointer;font-size:14px;font-weight:500;color:var(--accent);width:100%;justify-content:center;margin-bottom:16px}
+.empty{text-align:center;padding:32px 16px;color:var(--muted);font-size:14px}
+.section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.section-head h2{font-size:15px;font-weight:600}
+.apikey-note{font-size:11px;color:var(--muted);margin-top:6px}
+.addr-item{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px}
+.addr-item:last-child{border-bottom:none}
+.addr-label{font-weight:500}
+.addr-addr{color:var(--muted);font-size:12px}
+#toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1a1a18;color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:300}
+#toast.show{opacity:1}
+.flash{animation:flashIn .4s ease}
+@keyframes flashIn{0%{background:#dbeafe}100%{background:transparent}}
+</style>
+</head>
+<body>
+
+<header>
+  <h1><span class="realtime-dot" id="rt-dot"></span>Baukosten-Tracker</h1>
+  <button class="btn btn-secondary btn-sm" onclick="openSettings()">⚙️</button>
+</header>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('projekte')">Projekte</div>
+  <div class="tab" onclick="switchTab('rechnungen')">Rechnungen</div>
+  <div class="tab" onclick="switchTab('fahrten')">Fahrten</div>
+  <div class="tab" onclick="switchTab('uebersicht')">Übersicht</div>
+</div>
+
+<div id="tab-projekte" class="page active">
+  <div class="section-head"><h2>Meine Projekte</h2><button class="btn btn-primary btn-sm" onclick="openNewProject()">+ Neu</button></div>
+  <div id="project-list"></div>
+</div>
+
+<div id="tab-rechnungen" class="page">
+  <div id="no-project-msg" style="display:none"><div class="empty">Bitte zuerst ein Projekt auswählen</div></div>
+  <div id="rechnungen-content">
+    <div class="section-head"><h2 id="rechnung-project-name">Rechnungen</h2><button class="btn btn-primary btn-sm" onclick="openAddInvoice()">+ Neu</button></div>
+    <div id="invoice-list"></div>
+    <div style="margin-top:12px;display:flex;gap:8px">
+      <button class="btn btn-secondary" style="flex:1" onclick="exportCSV()">📊 CSV</button>
+      <button class="btn btn-secondary" style="flex:1" onclick="exportZIP()">📦 ZIP</button>
+    </div>
+  </div>
+</div>
+
+<div id="tab-fahrten" class="page">
+  <button class="gps-btn" onclick="findNearbyAddress()">📍 Bin ich gerade bei einer Projektadresse?</button>
+  <div class="section-head"><h2>Fahrten</h2><button class="btn btn-primary btn-sm" onclick="openAddTrip()">+ Neu</button></div>
+  <div id="trip-list"></div>
+  <div style="margin-top:16px">
+    <div class="section-head"><h2>Standard-Adressen</h2><button class="btn btn-secondary btn-sm" onclick="openAddAddress()">+ Adresse</button></div>
+    <div id="address-list"></div>
+  </div>
+</div>
+
+<div id="tab-uebersicht" class="page">
+  <div id="overview-content"></div>
+</div>
+
+<!-- MODALS -->
+<div class="modal-overlay" id="modal-project">
+  <div class="modal">
+    <div class="modal-title">Neues Projekt <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-project')">✕</button></div>
+    <label>Projektname</label>
+    <input type="text" id="new-project-name" placeholder="z.B. Haus Hemer EG">
+    <div style="margin-top:16px;display:flex;gap:8px">
+      <button class="btn btn-secondary" style="flex:1" onclick="closeModal('modal-project')">Abbrechen</button>
+      <button class="btn btn-primary" style="flex:1" onclick="saveProject()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-invoice">
+  <div class="modal">
+    <div class="modal-title">Rechnung erfassen <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-invoice')">✕</button></div>
+    <div class="ai-indicator" id="ai-status" style="display:none"><span>🤖</span><span id="ai-status-text">KI liest Rechnung aus…</span></div>
+    <label>PDF hochladen / abfotografieren</label>
+    <input type="file" id="invoice-file" accept="application/pdf,image/*" capture="environment" onchange="handleFileUpload(this)">
+    <label>Lieferant</label>
+    <input type="text" id="inv-supplier" placeholder="z.B. Baumarkt Hemer">
+    <label>Datum</label>
+    <input type="date" id="inv-date">
+    <label>Brutto-Betrag (€)</label>
+    <input type="number" id="inv-amount" placeholder="0.00" step="0.01">
+    <label>Kostenstelle</label>
+    <div class="pill-select" style="margin-top:4px">
+      <div class="pill active" onclick="selectCostType('Arbeitslohn',this)">Arbeitslohn</div>
+      <div class="pill" onclick="selectCostType('Material',this)">Material</div>
+    </div>
+    <input type="hidden" id="inv-cost-type" value="Arbeitslohn">
+    <div style="margin-top:16px;display:flex;gap:8px">
+      <button class="btn btn-secondary" style="flex:1" onclick="closeModal('modal-invoice')">Abbrechen</button>
+      <button class="btn btn-primary" style="flex:1" onclick="saveInvoice()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-trip">
+  <div class="modal">
+    <div class="modal-title">Fahrt erfassen <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-trip')">✕</button></div>
+    <label>Datum</label>
+    <input type="date" id="trip-date">
+    <label>Fahrer</label>
+    <div class="pill-select" style="margin-top:4px">
+      <div class="pill active" onclick="selectDriver('CL',this)">CL</div>
+      <div class="pill" onclick="selectDriver('YL',this)">YL</div>
+    </div>
+    <input type="hidden" id="trip-driver" value="CL">
+    <label>Start</label>
+    <input type="text" id="trip-origin" placeholder="Startadresse" list="addr-suggestions-from">
+    <datalist id="addr-suggestions-from"></datalist>
+    <label>Ziel</label>
+    <input type="text" id="trip-dest" placeholder="Zieladresse" list="addr-suggestions-to">
+    <datalist id="addr-suggestions-to"></datalist>
+    <div class="ai-indicator" id="km-status" style="display:none"><span>🤖</span><span id="km-status-text">KI ermittelt Entfernung…</span></div>
+    <label>Kilometer</label>
+    <input type="number" id="trip-km" placeholder="Wird von KI ermittelt" step="0.1">
+    <button class="btn btn-secondary btn-full" style="margin-top:8px" onclick="calcKm()">🤖 km ermitteln</button>
+    <div style="margin-top:16px;display:flex;gap:8px">
+      <button class="btn btn-secondary" style="flex:1" onclick="closeModal('modal-trip')">Abbrechen</button>
+      <button class="btn btn-primary" style="flex:1" onclick="saveTrip()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-address">
+  <div class="modal">
+    <div class="modal-title">Adresse hinterlegen <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-address')">✕</button></div>
+    <label>Bezeichnung</label>
+    <input type="text" id="addr-label" placeholder="z.B. Baumarkt Hemer">
+    <label>Adresse</label>
+    <input type="text" id="addr-address" placeholder="Straße, PLZ Ort">
+    <label style="display:flex;align-items:center;gap:8px;margin-top:12px">
+      <input type="checkbox" id="addr-watch" style="width:auto"> Als „Frag mich"-Adresse markieren
+    </label>
+    <div style="margin-top:16px;display:flex;gap:8px">
+      <button class="btn btn-secondary" style="flex:1" onclick="closeModal('modal-address')">Abbrechen</button>
+      <button class="btn btn-primary" style="flex:1" onclick="saveAddress()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-settings">
+  <div class="modal">
+    <div class="modal-title">Einstellungen <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-settings')">✕</button></div>
+    <label>Anthropic API Key</label>
+    <input type="password" id="set-anthropic-key" placeholder="sk-ant-...">
+    <p class="apikey-note">Wird lokal im Browser gespeichert</p>
+    <div style="margin-top:16px;display:flex;gap:8px">
+      <button class="btn btn-secondary" style="flex:1" onclick="closeModal('modal-settings')">Abbrechen</button>
+      <button class="btn btn-primary" style="flex:1" onclick="saveSettings()">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-nearby">
+  <div class="modal">
+    <div class="modal-title">Adresse erkannt <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-nearby')">✕</button></div>
+    <div id="nearby-content"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const SB_URL='https://adtamsdadhtsoyvphjax.supabase.co';
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFkdGFtc2RhZGh0c295dnBoamF4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE0MTkyOTAsImV4cCI6MjA5Njk5NTI5MH0.H8XWreBTyL7WLYrpAWgl5A6CejM6sT-a244aEIVJgwk';
+
+const {createClient} = supabase;
+const db = createClient(SB_URL, SB_KEY);
+
+let currentProject=null, projects=[], invoices=[], trips=[], addresses=[];
+let currentInvoiceFile=null;
+
+// Realtime
+function initRealtime(){
+  db.channel('global')
+    .on('postgres_changes',{event:'*',schema:'public',table:'projects'},()=>loadProjects())
+    .on('postgres_changes',{event:'*',schema:'public',table:'invoices'},()=>{if(currentProject)loadInvoices()})
+    .on('postgres_changes',{event:'*',schema:'public',table:'trips'},()=>{if(currentProject)loadTrips()})
+    .on('postgres_changes',{event:'*',schema:'public',table:'addresses'},()=>{if(currentProject)loadAddresses()})
+    .subscribe(status=>{
+      const dot=document.getElementById('rt-dot');
+      dot.classList.toggle('connected', status==='SUBSCRIBED');
+    });
+}
+
+const toast = msg=>{const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500)};
+
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',['projekte','rechnungen','fahrten','uebersicht'][i]===name));
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  if(name==='rechnungen') renderInvoices();
+  if(name==='fahrten'){renderTrips();renderAddresses();}
+  if(name==='uebersicht') renderOverview();
+}
+
+const openModal=id=>document.getElementById(id).classList.add('open');
+const closeModal=id=>document.getElementById(id).classList.remove('open');
+
+function openSettings(){
+  document.getElementById('set-anthropic-key').value=localStorage.getItem('anthropic_key')||'';
+  openModal('modal-settings');
+}
+function saveSettings(){
+  localStorage.setItem('anthropic_key',document.getElementById('set-anthropic-key').value.trim());
+  closeModal('modal-settings');
+  toast('Gespeichert');
+}
+const getKey=()=>localStorage.getItem('anthropic_key')||'';
+
+async function loadProjects(){
+  const {data}=await db.from('projects').select('*').order('created_at',{ascending:false});
+  projects=data||[];
+  renderProjects();
+}
+function renderProjects(){
+  const el=document.getElementById('project-list');
+  if(!projects.length){el.innerHTML='<div class="empty">Noch keine Projekte</div>';return}
+  el.innerHTML=projects.map(p=>`
+    <div class="project-item ${currentProject?.id===p.id?'selected':''}" onclick="selectProject('${p.id}')">
+      <div><div class="pname">${p.name}</div><div class="psub">${new Date(p.created_at).toLocaleDateString('de-DE')}</div></div>
+      <span style="color:var(--accent);font-size:12px">→</span>
+    </div>`).join('');
+}
+function selectProject(id){
+  currentProject=projects.find(p=>p.id===id);
+  renderProjects();
+  loadInvoices();loadTrips();loadAddresses();
+  toast('Projekt: '+currentProject.name);
+}
+function openNewProject(){document.getElementById('new-project-name').value='';openModal('modal-project');}
+async function saveProject(){
+  const name=document.getElementById('new-project-name').value.trim();
+  if(!name)return;
+  const {error}=await db.from('projects').insert({name});
+  if(error){toast('Fehler: '+error.message);return}
+  closeModal('modal-project');
+}
+
+async function loadInvoices(){
+  if(!currentProject)return;
+  const {data}=await db.from('invoices').select('*').eq('project_id',currentProject.id).order('date',{ascending:false});
+  invoices=data||[];
+  renderInvoices();
+  renderOverview();
+}
+function renderInvoices(){
+  if(!currentProject){document.getElementById('no-project-msg').style.display='block';document.getElementById('rechnungen-content').style.display='none';return}
+  document.getElementById('no-project-msg').style.display='none';
+  document.getElementById('rechnungen-content').style.display='block';
+  document.getElementById('rechnung-project-name').textContent=currentProject.name;
+  const el=document.getElementById('invoice-list');
+  if(!invoices.length){el.innerHTML='<div class="empty">Keine Rechnungen</div>';return}
+  el.innerHTML=invoices.map(inv=>`
+    <div class="invoice-item">
+      <div class="invoice-info">
+        <div class="name">${inv.supplier||'–'}</div>
+        <div class="sub">${inv.date?new Date(inv.date).toLocaleDateString('de-DE'):''} · <span class="badge ${inv.cost_type==='Arbeitslohn'?'badge-arbeit':'badge-material'}">${inv.cost_type}</span></div>
+      </div>
+      <div>
+        <div class="invoice-amount">${Number(inv.amount_gross).toLocaleString('de-DE',{style:'currency',currency:'EUR'})}</div>
+        ${inv.pdf_path?`<div style="text-align:right;margin-top:4px"><button class="btn btn-secondary btn-sm" onclick="downloadPdf('${inv.pdf_path}')">📄</button></div>`:''}
+      </div>
+    </div>`).join('');
+}
+function openAddInvoice(){
+  if(!currentProject){toast('Bitte erst Projekt auswählen');return}
+  document.getElementById('inv-supplier').value='';
+  document.getElementById('inv-date').value=today();
+  document.getElementById('inv-amount').value='';
+  document.getElementById('inv-cost-type').value='Arbeitslohn';
+  document.querySelectorAll('#modal-invoice .pill').forEach((p,i)=>p.classList.toggle('active',i===0));
+  document.getElementById('invoice-file').value='';
+  document.getElementById('ai-status').style.display='none';
+  currentInvoiceFile=null;
+  openModal('modal-invoice');
+}
+async function handleFileUpload(input){
+  const file=input.files[0];if(!file)return;
+  currentInvoiceFile=file;
+  const key=getKey();if(!key){toast('Kein API Key hinterlegt');return}
+  const statusEl=document.getElementById('ai-status');
+  statusEl.style.display='flex';statusEl.classList.add('loading');
+  document.getElementById('ai-status-text').textContent='KI liest Rechnung aus…';
+  const b64=await toBase64(file);
+  const isPdf=file.type==='application/pdf';
+  try{
+    const body={model:'claude-sonnet-4-6',max_tokens:500,messages:[{role:'user',content:[
+      isPdf?{type:'document',source:{type:'base64',media_type:'application/pdf',data:b64}}:{type:'image',source:{type:'base64',media_type:file.type,data:b64}},
+      {type:'text',text:'Extrahiere: Lieferant, Datum (YYYY-MM-DD), Bruttobetrag. Nur JSON: {"supplier":"...","date":"YYYY-MM-DD","amount":0.00}'}
+    ]}]};
+    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify(body)});
+    const data=await r.json();
+    const txt=data.content?.find(c=>c.type==='text')?.text||'';
+    const parsed=JSON.parse(txt.replace(/```json|```/g,'').trim());
+    if(parsed.supplier)document.getElementById('inv-supplier').value=parsed.supplier;
+    if(parsed.date)document.getElementById('inv-date').value=parsed.date;
+    if(parsed.amount)document.getElementById('inv-amount').value=parsed.amount;
+    document.getElementById('ai-status-text').textContent='✅ Erkannt – bitte prüfen';
+  }catch{document.getElementById('ai-status-text').textContent='⚠️ Nicht erkannt – manuell eingeben';}
+  statusEl.classList.remove('loading');
+}
+const toBase64=f=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=rej;r.readAsDataURL(f);});
+const selectCostType=(v,el)=>{document.getElementById('inv-cost-type').value=v;document.querySelectorAll('#modal-invoice .pill').forEach(p=>p.classList.remove('active'));el.classList.add('active');};
+const selectDriver=(v,el)=>{document.getElementById('trip-driver').value=v;document.querySelectorAll('#modal-trip .pill').forEach(p=>p.classList.remove('active'));el.classList.add('active');};
+
+async function saveInvoice(){
+  if(!currentProject)return;
+  const supplier=document.getElementById('inv-supplier').value.trim();
+  const date=document.getElementById('inv-date').value;
+  const amount=parseFloat(document.getElementById('inv-amount').value);
+  const cost_type=document.getElementById('inv-cost-type').value;
+  if(!supplier||!date||isNaN(amount)){toast('Alle Felder ausfüllen');return}
+  let pdf_path=null;
+  if(currentInvoiceFile){
+    const fname=`${currentProject.id}/${Date.now()}_${currentInvoiceFile.name}`;
+    await db.storage.from('rechnungen').upload(fname,currentInvoiceFile);
+    pdf_path=fname;
+  }
+  const {error}=await db.from('invoices').insert({project_id:currentProject.id,supplier,date,amount_gross:amount,cost_type,pdf_path});
+  if(error){toast('Fehler: '+error.message);return}
+  closeModal('modal-invoice');toast('Rechnung gespeichert');
+}
+async function downloadPdf(path){
+  const {data}=await db.storage.from('rechnungen').download(path);
+  if(!data){toast('PDF nicht gefunden');return}
+  const a=document.createElement('a');a.href=URL.createObjectURL(data);a.download=path.split('/').pop();a.click();
+}
+
+async function loadTrips(){
+  if(!currentProject)return;
+  const {data}=await db.from('trips').select('*').eq('project_id',currentProject.id).order('date',{ascending:false});
+  trips=data||[];
+  renderTrips();renderOverview();
+}
+function renderTrips(){
+  const el=document.getElementById('trip-list');
+  if(!trips.length){el.innerHTML='<div class="empty">Keine Fahrten</div>';return}
+  el.innerHTML=trips.map(t=>`
+    <div class="trip-item">
+      <div class="driver-badge ${t.driver==='YL'?'yl':''}">${t.driver}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:500">${t.origin} → ${t.destination}</div>
+        <div style="font-size:12px;color:var(--muted)">${t.date?new Date(t.date).toLocaleDateString('de-DE'):''}</div>
+      </div>
+      <div style="font-size:14px;font-weight:600;white-space:nowrap">${Number(t.distance_km).toFixed(1)} km</div>
+    </div>`).join('');
+}
+async function loadAddresses(){
+  if(!currentProject)return;
+  const {data}=await db.from('addresses').select('*').eq('project_id',currentProject.id).order('label');
+  addresses=data||[];
+  renderAddresses();updateDatalist();
+}
+function renderAddresses(){
+  const el=document.getElementById('address-list');
+  if(!addresses.length){el.innerHTML='<div class="empty" style="padding:16px 0">Keine Adressen</div>';return}
+  el.innerHTML=addresses.map(a=>`
+    <div class="addr-item">
+      <div><div class="addr-label">${a.label}${a.watch?' 📍':''}</div><div class="addr-addr">${a.address}</div></div>
+      <button class="btn btn-danger btn-sm" onclick="deleteAddress('${a.id}')">🗑️</button>
+    </div>`).join('');
+}
+function updateDatalist(){
+  const opts=addresses.map(a=>`<option value="${a.address}">${a.label}</option>`).join('');
+  document.getElementById('addr-suggestions-from').innerHTML=opts;
+  document.getElementById('addr-suggestions-to').innerHTML=opts;
+}
+function openAddTrip(){
+  if(!currentProject){toast('Bitte erst Projekt auswählen');return}
+  document.getElementById('trip-date').value=today();
+  document.getElementById('trip-driver').value='CL';
+  document.querySelectorAll('#modal-trip .pill').forEach((p,i)=>p.classList.toggle('active',i===0));
+  document.getElementById('trip-origin').value='';
+  document.getElementById('trip-dest').value='';
+  document.getElementById('trip-km').value='';
+  document.getElementById('km-status').style.display='none';
+  openModal('modal-trip');
+}
+async function calcKm(){
+  const origin=document.getElementById('trip-origin').value.trim();
+  const dest=document.getElementById('trip-dest').value.trim();
+  if(!origin||!dest){toast('Start und Ziel eingeben');return}
+  const key=getKey();if(!key){toast('Kein API Key');return}
+  const statusEl=document.getElementById('km-status');
+  statusEl.style.display='flex';statusEl.classList.add('loading');
+  document.getElementById('km-status-text').textContent='KI ermittelt Entfernung…';
+  try{
+    const body={model:'claude-sonnet-4-6',max_tokens:200,tools:[{type:'web_search_20250305',name:'web_search'}],
+      messages:[{role:'user',content:`Wie viele Kilometer Autofahrt von "${origin}" nach "${dest}"? Nur eine Zahl, z.B. 12.5`}]};
+    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify(body)});
+    const data=await r.json();
+    const txt=data.content?.filter(c=>c.type==='text').map(c=>c.text).join('')||'';
+    const match=txt.match(/\d+[.,]?\d*/);
+    if(match){
+      const km=parseFloat(match[0].replace(',','.'));
+      document.getElementById('trip-km').value=km.toFixed(1);
+      document.getElementById('km-status-text').textContent=`✅ ${km.toFixed(1)} km – bitte prüfen`;
+    }else document.getElementById('km-status-text').textContent='⚠️ Nicht ermittelt – manuell eingeben';
+  }catch{document.getElementById('km-status-text').textContent='⚠️ Fehler – manuell eingeben';}
+  statusEl.classList.remove('loading');
+}
+async function saveTrip(){
+  if(!currentProject)return;
+  const date=document.getElementById('trip-date').value;
+  const driver=document.getElementById('trip-driver').value;
+  const origin=document.getElementById('trip-origin').value.trim();
+  const destination=document.getElementById('trip-dest').value.trim();
+  const km=parseFloat(document.getElementById('trip-km').value);
+  if(!date||!origin||!destination||isNaN(km)){toast('Alle Felder ausfüllen');return}
+  const {error}=await db.from('trips').insert({project_id:currentProject.id,date,driver,origin,destination,distance_km:km});
+  if(error){toast('Fehler: '+error.message);return}
+  closeModal('modal-trip');toast('Fahrt gespeichert');
+}
+function openAddAddress(){
+  if(!currentProject){toast('Bitte erst Projekt auswählen');return}
+  document.getElementById('addr-label').value='';
+  document.getElementById('addr-address').value='';
+  document.getElementById('addr-watch').checked=false;
+  openModal('modal-address');
+}
+async function saveAddress(){
+  if(!currentProject)return;
+  const label=document.getElementById('addr-label').value.trim();
+  const address=document.getElementById('addr-address').value.trim();
+  const watch=document.getElementById('addr-watch').checked;
+  if(!label||!address){toast('Alle Felder ausfüllen');return}
+  const {error}=await db.from('addresses').insert({project_id:currentProject.id,label,address,watch});
+  if(error){toast('Fehler: '+error.message);return}
+  closeModal('modal-address');
+}
+async function deleteAddress(id){
+  await db.from('addresses').delete().eq('id',id);
+}
+
+// GPS
+function haversine(la1,lo1,la2,lo2){
+  const R=6371,dL=(la2-la1)*Math.PI/180,dO=(lo2-lo1)*Math.PI/180;
+  const a=Math.sin(dL/2)**2+Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(dO/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+async function geocode(addr){
+  try{
+    const r=await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(addr)}&format=json&limit=1`,{headers:{'User-Agent':'BaukostenTracker/1.0'}});
+    const d=await r.json();
+    if(d[0])return{lat:parseFloat(d[0].lat),lon:parseFloat(d[0].lon)};
+  }catch{}return null;
+}
+async function findNearbyAddress(){
+  if(!currentProject){toast('Bitte erst Projekt auswählen');return}
+  const watchAddrs=addresses.filter(a=>a.watch);
+  if(!watchAddrs.length){toast('Keine „Frag mich"-Adressen hinterlegt');return}
+  if(!navigator.geolocation){toast('GPS nicht verfügbar');return}
+  toast('GPS wird ermittelt…');
+  navigator.geolocation.getCurrentPosition(async pos=>{
+    const{latitude:lat,longitude:lon}=pos.coords;
+    let found=null,minDist=999;
+    for(const a of watchAddrs){
+      const geo=await geocode(a.address);
+      if(!geo)continue;
+      const d=haversine(lat,lon,geo.lat,geo.lon);
+      if(d<minDist){minDist=d;found=a}
+    }
+    if(found&&minDist<1){
+      document.getElementById('nearby-content').innerHTML=`
+        <p style="font-size:14px;margin-bottom:16px">Du bist ca. <strong>${(minDist*1000).toFixed(0)}m</strong> von <strong>${found.label}</strong> entfernt.</p>
+        <p style="font-size:14px;margin-bottom:16px">Fahrt hierher erfassen?</p>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-secondary" style="flex:1" onclick="closeModal('modal-nearby')">Nein</button>
+          <button class="btn btn-primary" style="flex:1" onclick="closeModal('modal-nearby');openTripTo('${found.address}')">Ja</button>
+        </div>`;
+      openModal('modal-nearby');
+    }else toast('Keine markierte Adresse in der Nähe');
+  },()=>toast('GPS-Zugriff verweigert'));
+}
+function openTripTo(dest){openAddTrip();document.getElementById('trip-dest').value=dest;}
+
+function renderOverview(){
+  const el=document.getElementById('overview-content');
+  if(!currentProject){el.innerHTML='<div class="empty">Bitte erst Projekt auswählen</div>';return}
+  const total=invoices.reduce((s,i)=>s+Number(i.amount_gross),0);
+  const arbeit=invoices.filter(i=>i.cost_type==='Arbeitslohn').reduce((s,i)=>s+Number(i.amount_gross),0);
+  const mat=invoices.filter(i=>i.cost_type==='Material').reduce((s,i)=>s+Number(i.amount_gross),0);
+  const totalKm=trips.reduce((s,t)=>s+Number(t.distance_km),0);
+  const clKm=trips.filter(t=>t.driver==='CL').reduce((s,t)=>s+Number(t.distance_km),0);
+  const ylKm=trips.filter(t=>t.driver==='YL').reduce((s,t)=>s+Number(t.distance_km),0);
+  el.innerHTML=`
+    <div class="card">
+      <div class="card-title">💶 Kosten – ${currentProject.name}</div>
+      <div class="stat-grid">
+        <div class="stat"><div class="stat-label">Gesamt</div><div class="stat-val blue">${total.toLocaleString('de-DE',{style:'currency',currency:'EUR'})}</div></div>
+        <div class="stat"><div class="stat-label">Rechnungen</div><div class="stat-val">${invoices.length}</div></div>
+        <div class="stat"><div class="stat-label">Arbeitslohn</div><div class="stat-val amber">${arbeit.toLocaleString('de-DE',{style:'currency',currency:'EUR'})}</div></div>
+        <div class="stat"><div class="stat-label">Material</div><div class="stat-val green">${mat.toLocaleString('de-DE',{style:'currency',currency:'EUR'})}</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">🚗 Fahrten</div>
+      <div class="stat-grid">
+        <div class="stat"><div class="stat-label">Gesamt km</div><div class="stat-val blue">${totalKm.toFixed(1)} km</div></div>
+        <div class="stat"><div class="stat-label">Fahrten</div><div class="stat-val">${trips.length}</div></div>
+        <div class="stat"><div class="stat-label">CL</div><div class="stat-val">${clKm.toFixed(1)} km</div></div>
+        <div class="stat"><div class="stat-label">YL</div><div class="stat-val">${ylKm.toFixed(1)} km</div></div>
+      </div>
+    </div>`;
+}
+
+function exportCSV(){
+  if(!currentProject)return;
+  let csv='Typ;Datum;Lieferant/Von;Nach;Betrag/km;Kostenstelle/Fahrer\n';
+  invoices.forEach(i=>csv+=`Rechnung;${i.date};${i.supplier};;${Number(i.amount_gross).toFixed(2)} EUR;${i.cost_type}\n`);
+  trips.forEach(t=>csv+=`Fahrt;${t.date};${t.origin};${t.destination};${Number(t.distance_km).toFixed(1)} km;${t.driver}\n`);
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));a.download=`${currentProject.name}_Export.csv`;a.click();
+  toast('CSV exportiert');
+}
+async function exportZIP(){
+  if(!currentProject)return;
+  const s=document.createElement('script');
+  s.src='https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+  s.onload=async()=>{
+    const zip=new JSZip();
+    let csv='Typ;Datum;Lieferant/Von;Nach;Betrag/km;Kostenstelle/Fahrer\n';
+    invoices.forEach(i=>csv+=`Rechnung;${i.date};${i.supplier};;${Number(i.amount_gross).toFixed(2)} EUR;${i.cost_type}\n`);
+    trips.forEach(t=>csv+=`Fahrt;${t.date};${t.origin};${t.destination};${Number(t.distance_km).toFixed(1)} km;${t.driver}\n`);
+    zip.file('Übersicht.csv','\uFEFF'+csv);
+    const folder=zip.folder('Rechnungen');
+    for(const inv of invoices){
+      if(inv.pdf_path){
+        try{const{data}=await db.storage.from('rechnungen').download(inv.pdf_path);if(data)folder.file(inv.pdf_path.split('/').pop(),data)}catch{}
+      }
+    }
+    const blob=await zip.generateAsync({type:'blob'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`${currentProject.name}_Komplett.zip`;a.click();
+    toast('ZIP exportiert');
+  };
+  document.head.appendChild(s);
+}
+
+const today=()=>new Date().toISOString().split('T')[0];
+
+// Init
+loadProjects();
+initRealtime();
+</script>
+</body>
+</html>
