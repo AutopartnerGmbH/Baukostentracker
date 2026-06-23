@@ -5,27 +5,29 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Baukosten-Tracker</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:system-ui,sans-serif;background:#f5f5f3;color:#1a1a18;min-height:100vh}
-:root{--accent:#2563eb;--accent-light:#eff6ff;--border:#e2e0d8;--card:#fff;--muted:#6b6b68;--danger:#dc2626;--success:#16a34a;--warn:#d97706}
+:root{--accent:#2563eb;--al:#eff6ff;--border:#e2e0d8;--muted:#6b6b68;--danger:#dc2626;--success:#16a34a;--warn:#d97706}
 header{background:#fff;border-bottom:1px solid var(--border);padding:0 16px;display:flex;align-items:center;justify-content:space-between;height:56px;position:sticky;top:0;z-index:100}
-header h1{font-size:16px;font-weight:600}
-.realtime-dot{width:8px;height:8px;border-radius:50%;background:#ccc;display:inline-block;margin-right:6px;transition:background .3s}
-.realtime-dot.connected{background:var(--success)}
-.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);background:#fff;overflow-x:auto;scrollbar-width:none}
+header h1{font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px}
+.dot{width:8px;height:8px;border-radius:50%;background:#ccc;transition:background .3s;flex-shrink:0}
+.dot.on{background:var(--success)}
+.tabs{display:flex;border-bottom:1px solid var(--border);background:#fff;overflow-x:auto;scrollbar-width:none}
 .tabs::-webkit-scrollbar{display:none}
-.tab{flex:none;padding:10px 16px;font-size:13px;font-weight:500;color:var(--muted);border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap}
+.tab{flex:none;padding:10px 14px;font-size:13px;font-weight:500;color:var(--muted);border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap}
 .tab.active{color:var(--accent);border-bottom-color:var(--accent)}
-.page{display:none;padding:16px}
+.page{display:none;padding:16px;padding-bottom:80px}
 .page.active{display:block}
-.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px}
-.card-title{font-size:14px;font-weight:600;margin-bottom:12px}
+.card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px}
+.card-title{font-size:14px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between}
 label{font-size:13px;color:var(--muted);display:block;margin-bottom:4px;margin-top:10px}
 label:first-child{margin-top:0}
-input,select,textarea{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:#fff;color:#1a1a18;outline:none;transition:border-color .15s}
+input,select{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:#fff;color:#1a1a18;outline:none;transition:border-color .15s}
 input:focus,select:focus{border-color:var(--accent)}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 16px;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;border:none;transition:all .15s}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 16px;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;border:none;transition:all .15s;white-space:nowrap}
 .btn-primary{background:var(--accent);color:#fff}
 .btn-primary:hover{background:#1d4ed8}
 .btn-secondary{background:#fff;color:#1a1a18;border:1px solid var(--border)}
@@ -33,67 +35,71 @@ input:focus,select:focus{border-color:var(--accent)}
 .btn-danger{background:#fff;color:var(--danger);border:1px solid #fecaca}
 .btn-sm{padding:6px 10px;font-size:12px}
 .btn-full{width:100%}
-.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
-.stat{background:#f8f8f6;border-radius:10px;padding:12px}
-.stat-label{font-size:11px;color:var(--muted);margin-bottom:4px}
-.stat-val{font-size:20px;font-weight:600}
-.stat-val.blue{color:var(--accent)}
-.stat-val.green{color:var(--success)}
-.stat-val.amber{color:var(--warn)}
-.invoice-item{border-bottom:1px solid var(--border);padding:10px 0;display:flex;align-items:flex-start;gap:10px}
-.invoice-item:last-child{border-bottom:none}
-.invoice-info{flex:1;min-width:0}
-.invoice-info .name{font-size:14px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.invoice-info .sub{font-size:12px;color:var(--muted)}
-.invoice-amount{font-size:15px;font-weight:600;text-align:right;white-space:nowrap}
+.pills{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+.pill{padding:7px 16px;border-radius:20px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:#fff;color:var(--muted);transition:all .15s}
+.pill.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.addr-pill{padding:6px 12px;border-radius:20px;font-size:12px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:#fff;color:var(--muted);white-space:nowrap;transition:all .15s}
+.addr-pill:hover{border-color:var(--accent);color:var(--accent)}
+.addr-pills-wrap{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;margin-bottom:4px}
+.proj-item{padding:12px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;transition:border-color .15s}
+.proj-item:hover,.proj-item.sel{border-color:var(--accent);background:var(--al)}
+.proj-name{font-weight:500;font-size:14px}
+.proj-sub{font-size:12px;color:var(--muted)}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;align-items:flex-end;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{background:#fff;border-radius:16px 16px 0 0;padding:20px;width:100%;max-width:520px;max-height:92vh;overflow-y:auto}
+.modal-title{font-size:16px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between}
+.ai-bar{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--al);border-radius:8px;font-size:12px;color:var(--accent);margin-bottom:12px}
+.ai-bar.spin{animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.inv-row{border-bottom:1px solid var(--border);padding:10px 0;display:flex;align-items:center;gap:10px}
+.inv-row:last-child{border-bottom:none}
+.inv-info{flex:1;min-width:0}
+.inv-name{font-size:14px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.inv-sub{font-size:12px;color:var(--muted)}
+.inv-amt{font-size:15px;font-weight:600;white-space:nowrap;text-align:right}
 .badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500}
 .badge-arbeit{background:#fef3c7;color:#92400e}
 .badge-material{background:#dbeafe;color:#1e40af}
-.project-item{padding:12px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;transition:border-color .15s}
-.project-item:hover,.project-item.selected{border-color:var(--accent);background:var(--accent-light)}
-.project-item .pname{font-weight:500;font-size:14px}
-.project-item .psub{font-size:12px;color:var(--muted)}
-.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;align-items:flex-end;justify-content:center}
-.modal-overlay.open{display:flex}
-.modal{background:#fff;border-radius:16px 16px 0 0;padding:20px;width:100%;max-width:500px;max-height:90vh;overflow-y:auto}
-.modal-title{font-size:16px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between}
-.ai-indicator{display:flex;align-items:center;gap:6px;padding:8px 12px;background:#eff6ff;border-radius:8px;font-size:12px;color:var(--accent);margin-bottom:12px}
-.ai-indicator.loading{animation:pulse 1s infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
-.pill-select{display:flex;gap:8px}
-.pill{padding:7px 14px;border-radius:20px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:#fff;color:var(--muted);transition:all .15s}
-.pill.active{background:var(--accent);color:#fff;border-color:var(--accent)}
-.trip-item{border-bottom:1px solid var(--border);padding:10px 0;display:flex;align-items:flex-start;gap:10px}
-.trip-item:last-child{border-bottom:none}
-.driver-badge{width:32px;height:32px;border-radius:50%;background:var(--accent-light);color:var(--accent);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.driver-badge.yl{background:#fdf4ff;color:#7e22ce}
-.gps-btn{display:flex;align-items:center;gap:8px;padding:12px;background:var(--accent-light);border:1px solid #bfdbfe;border-radius:10px;cursor:pointer;font-size:14px;font-weight:500;color:var(--accent);width:100%;justify-content:center;margin-bottom:16px}
-.empty{text-align:center;padding:32px 16px;color:var(--muted);font-size:14px}
+.trip-row{border-bottom:1px solid var(--border);padding:10px 0;display:flex;align-items:center;gap:10px}
+.trip-row:last-child{border-bottom:none}
+.drv{width:34px;height:34px;border-radius:50%;background:var(--al);color:var(--accent);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.drv.yl{background:#fdf4ff;color:#7e22ce}
+.addr-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px}
+.addr-row:last-child{border-bottom:none}
+.gps-btn{display:flex;align-items:center;justify-content:center;gap:8px;padding:14px;background:var(--al);border:1px solid #bfdbfe;border-radius:12px;cursor:pointer;font-size:14px;font-weight:500;color:var(--accent);width:100%;margin-bottom:16px}
 .section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
 .section-head h2{font-size:15px;font-weight:600}
-.apikey-note{font-size:11px;color:var(--muted);margin-top:6px}
-.addr-item{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px}
-.addr-item:last-child{border-bottom:none}
-.addr-label{font-weight:500}
-.addr-addr{color:var(--muted);font-size:12px}
-#toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1a1a18;color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:300}
+.empty{text-align:center;padding:32px 16px;color:var(--muted);font-size:14px}
+.upload-zone{border:2px dashed var(--border);border-radius:12px;padding:24px;text-align:center;cursor:pointer;margin-bottom:8px;transition:border-color .15s;position:relative}
+.upload-zone:hover{border-color:var(--accent)}
+.upload-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.upload-icon{font-size:32px;margin-bottom:8px}
+.upload-label{font-size:14px;font-weight:500;color:var(--accent)}
+.upload-sub{font-size:12px;color:var(--muted);margin-top:4px}
+.summary-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:14px}
+.summary-row:last-child{border-bottom:none}
+.summary-row.total{font-weight:600}
+.profit-box{padding:14px;border-radius:10px;margin-top:8px}
+.profit-box.pos{background:#f0fdf4;border:1px solid #86efac}
+.profit-box.neg{background:#fef2f2;border:1px solid #fca5a5}
+.profit-box.neutral{background:#f8f8f6;border:1px solid var(--border)}
+.profit-label{font-size:12px;color:var(--muted);margin-bottom:4px}
+.profit-val{font-size:22px;font-weight:700}
+#toast{position:fixed;bottom:72px;left:50%;transform:translateX(-50%);background:#1a1a18;color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:400;white-space:nowrap}
 #toast.show{opacity:1}
-.flash{animation:flashIn .4s ease}
-@keyframes flashIn{0%{background:#dbeafe}100%{background:transparent}}
 </style>
 </head>
 <body>
-
 <header>
-  <h1><span class="realtime-dot" id="rt-dot"></span>Baukosten-Tracker</h1>
+  <h1><span class="dot" id="rt-dot"></span>Baukosten-Tracker</h1>
   <button class="btn btn-secondary btn-sm" onclick="openSettings()">⚙️</button>
 </header>
-
 <div class="tabs">
   <div class="tab active" onclick="switchTab('projekte')">Projekte</div>
+  <div class="tab" onclick="switchTab('uebersicht')">Übersicht</div>
   <div class="tab" onclick="switchTab('rechnungen')">Rechnungen</div>
   <div class="tab" onclick="switchTab('fahrten')">Fahrten</div>
-  <div class="tab" onclick="switchTab('uebersicht')">Übersicht</div>
 </div>
 
 <div id="tab-projekte" class="page active">
@@ -101,12 +107,16 @@ input:focus,select:focus{border-color:var(--accent)}
   <div id="project-list"></div>
 </div>
 
+<div id="tab-uebersicht" class="page">
+  <div id="overview-content"><div class="empty">Bitte zuerst ein Projekt auswählen</div></div>
+</div>
+
 <div id="tab-rechnungen" class="page">
-  <div id="no-project-msg" style="display:none"><div class="empty">Bitte zuerst ein Projekt auswählen</div></div>
-  <div id="rechnungen-content">
-    <div class="section-head"><h2 id="rechnung-project-name">Rechnungen</h2><button class="btn btn-primary btn-sm" onclick="openAddInvoice()">+ Neu</button></div>
+  <div id="inv-no-proj" style="display:none"><div class="empty">Bitte zuerst ein Projekt auswählen</div></div>
+  <div id="inv-content" style="display:none">
+    <div class="section-head"><h2 id="inv-proj-name">Rechnungen</h2><button class="btn btn-primary btn-sm" onclick="openAddInvoice()">+ Neu</button></div>
     <div id="invoice-list"></div>
-    <div style="margin-top:12px;display:flex;gap:8px">
+    <div style="display:flex;gap:8px;margin-top:12px">
       <button class="btn btn-secondary" style="flex:1" onclick="exportCSV()">📊 CSV</button>
       <button class="btn btn-secondary" style="flex:1" onclick="exportZIP()">📦 ZIP</button>
     </div>
@@ -114,118 +124,130 @@ input:focus,select:focus{border-color:var(--accent)}
 </div>
 
 <div id="tab-fahrten" class="page">
-  <button class="gps-btn" onclick="findNearbyAddress()">📍 Bin ich gerade bei einer Projektadresse?</button>
+  <button class="gps-btn" onclick="findNearby()">📍 Bin ich bei einer Projektadresse?</button>
   <div class="section-head"><h2>Fahrten</h2><button class="btn btn-primary btn-sm" onclick="openAddTrip()">+ Neu</button></div>
   <div id="trip-list"></div>
   <div style="margin-top:16px">
-    <div class="section-head"><h2>Standard-Adressen</h2><button class="btn btn-secondary btn-sm" onclick="openAddAddress()">+ Adresse</button></div>
-    <div id="address-list"></div>
+    <div class="section-head"><h2>Standard-Adressen</h2><button class="btn btn-secondary btn-sm" onclick="openAddAddr()">+ Adresse</button></div>
+    <div id="addr-list"></div>
   </div>
 </div>
 
-<div id="tab-uebersicht" class="page">
-  <div id="overview-content"></div>
-</div>
-
-<!-- MODALS -->
-<div class="modal-overlay" id="modal-project">
+<!-- MODAL: Projekt -->
+<div class="modal-overlay" id="m-project">
   <div class="modal">
-    <div class="modal-title">Neues Projekt <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-project')">✕</button></div>
+    <div class="modal-title"><span id="m-proj-title">Neues Projekt</span><button class="btn btn-secondary btn-sm" onclick="closeModal('m-project')">✕</button></div>
     <label>Projektname</label>
-    <input type="text" id="new-project-name" placeholder="z.B. Haus Hemer EG">
+    <input type="text" id="proj-name-input" placeholder="z.B. Haus Hemer EG">
+    <input type="hidden" id="proj-edit-id">
     <div style="margin-top:16px;display:flex;gap:8px">
-      <button class="btn btn-secondary" style="flex:1" onclick="closeModal('modal-project')">Abbrechen</button>
+      <button class="btn btn-secondary" style="flex:1" onclick="closeModal('m-project')">Abbrechen</button>
       <button class="btn btn-primary" style="flex:1" onclick="saveProject()">Speichern</button>
     </div>
   </div>
 </div>
 
-<div class="modal-overlay" id="modal-invoice">
+<!-- MODAL: Rechnung -->
+<div class="modal-overlay" id="m-invoice">
   <div class="modal">
-    <div class="modal-title">Rechnung erfassen <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-invoice')">✕</button></div>
-    <div class="ai-indicator" id="ai-status" style="display:none"><span>🤖</span><span id="ai-status-text">KI liest Rechnung aus…</span></div>
-    <label>PDF hochladen / abfotografieren</label>
-    <input type="file" id="invoice-file" accept="application/pdf,image/*" capture="environment" onchange="handleFileUpload(this)">
-    <label>Lieferant</label>
+    <div class="modal-title">Rechnung erfassen <button class="btn btn-secondary btn-sm" onclick="closeModal('m-invoice')">✕</button></div>
+    <div class="ai-bar" id="ai-bar" style="display:none"><span>🤖</span><span id="ai-bar-text">KI liest aus…</span></div>
+    <div class="upload-zone">
+      <input type="file" id="inv-file" accept="application/pdf,image/*" capture="environment" onchange="handleFile(this)">
+      <div class="upload-icon">📄</div>
+      <div class="upload-label">PDF hochladen oder Foto machen</div>
+      <div class="upload-sub">Tippe hier · Kamera oder Galerie</div>
+    </div>
+    <div id="inv-file-name" style="font-size:12px;color:var(--accent);margin-bottom:8px;display:none"></div>
+    <label>Lieferant / Rechnungssteller</label>
     <input type="text" id="inv-supplier" placeholder="z.B. Baumarkt Hemer">
     <label>Datum</label>
     <input type="date" id="inv-date">
     <label>Brutto-Betrag (€)</label>
-    <input type="number" id="inv-amount" placeholder="0.00" step="0.01">
+    <input type="number" id="inv-amount" placeholder="0.00" step="0.01" min="0">
     <label>Kostenstelle</label>
-    <div class="pill-select" style="margin-top:4px">
-      <div class="pill active" onclick="selectCostType('Arbeitslohn',this)">Arbeitslohn</div>
-      <div class="pill" onclick="selectCostType('Material',this)">Material</div>
+    <div class="pills">
+      <div class="pill on" onclick="setCost('Arbeitslohn',this)">Arbeitslohn</div>
+      <div class="pill" onclick="setCost('Material',this)">Material</div>
     </div>
-    <input type="hidden" id="inv-cost-type" value="Arbeitslohn">
+    <input type="hidden" id="inv-cost" value="Arbeitslohn">
     <div style="margin-top:16px;display:flex;gap:8px">
-      <button class="btn btn-secondary" style="flex:1" onclick="closeModal('modal-invoice')">Abbrechen</button>
+      <button class="btn btn-secondary" style="flex:1" onclick="closeModal('m-invoice')">Abbrechen</button>
       <button class="btn btn-primary" style="flex:1" onclick="saveInvoice()">Speichern</button>
     </div>
   </div>
 </div>
 
-<div class="modal-overlay" id="modal-trip">
+<!-- MODAL: Fahrt -->
+<div class="modal-overlay" id="m-trip">
   <div class="modal">
-    <div class="modal-title">Fahrt erfassen <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-trip')">✕</button></div>
+    <div class="modal-title">Fahrt erfassen <button class="btn btn-secondary btn-sm" onclick="closeModal('m-trip')">✕</button></div>
     <label>Datum</label>
     <input type="date" id="trip-date">
     <label>Fahrer</label>
-    <div class="pill-select" style="margin-top:4px">
-      <div class="pill active" onclick="selectDriver('CL',this)">CL</div>
-      <div class="pill" onclick="selectDriver('YL',this)">YL</div>
+    <div class="pills">
+      <div class="pill on" onclick="setDriver('CL',this)">CL</div>
+      <div class="pill" onclick="setDriver('YL',this)">YL</div>
     </div>
-    <input type="hidden" id="trip-driver" value="CL">
+    <input type="hidden" id="trip-drv" value="CL">
     <label>Start</label>
-    <input type="text" id="trip-origin" placeholder="Startadresse" list="addr-suggestions-from">
-    <datalist id="addr-suggestions-from"></datalist>
+    <div id="from-pills" class="addr-pills-wrap"></div>
+    <input type="text" id="trip-from" placeholder="Startadresse eingeben oder oben auswählen">
     <label>Ziel</label>
-    <input type="text" id="trip-dest" placeholder="Zieladresse" list="addr-suggestions-to">
-    <datalist id="addr-suggestions-to"></datalist>
-    <div class="ai-indicator" id="km-status" style="display:none"><span>🤖</span><span id="km-status-text">KI ermittelt Entfernung…</span></div>
+    <div id="to-pills" class="addr-pills-wrap"></div>
+    <input type="text" id="trip-to" placeholder="Zieladresse eingeben oder oben auswählen">
+    <label>Grund der Fahrt</label>
+    <input type="text" id="trip-reason" placeholder="z.B. Materialeinkauf, Aufmaß, Handwerker">
+    <div class="ai-bar" id="km-bar" style="display:none"><span>🤖</span><span id="km-bar-text">Ermittle km…</span></div>
     <label>Kilometer</label>
-    <input type="number" id="trip-km" placeholder="Wird von KI ermittelt" step="0.1">
+    <input type="number" id="trip-km" placeholder="Wird automatisch ermittelt" step="0.1" min="0">
     <button class="btn btn-secondary btn-full" style="margin-top:8px" onclick="calcKm()">🤖 km ermitteln</button>
     <div style="margin-top:16px;display:flex;gap:8px">
-      <button class="btn btn-secondary" style="flex:1" onclick="closeModal('modal-trip')">Abbrechen</button>
+      <button class="btn btn-secondary" style="flex:1" onclick="closeModal('m-trip')">Abbrechen</button>
       <button class="btn btn-primary" style="flex:1" onclick="saveTrip()">Speichern</button>
     </div>
   </div>
 </div>
 
-<div class="modal-overlay" id="modal-address">
+<!-- MODAL: Adresse -->
+<div class="modal-overlay" id="m-addr">
   <div class="modal">
-    <div class="modal-title">Adresse hinterlegen <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-address')">✕</button></div>
+    <div class="modal-title"><span id="m-addr-title">Adresse hinterlegen</span><button class="btn btn-secondary btn-sm" onclick="closeModal('m-addr')">✕</button></div>
+    <input type="hidden" id="addr-edit-id">
     <label>Bezeichnung</label>
-    <input type="text" id="addr-label" placeholder="z.B. Baumarkt Hemer">
+    <input type="text" id="addr-label-in" placeholder="z.B. Baumarkt Hemer">
     <label>Adresse</label>
-    <input type="text" id="addr-address" placeholder="Straße, PLZ Ort">
+    <input type="text" id="addr-addr-in" placeholder="Straße, PLZ Ort">
     <label style="display:flex;align-items:center;gap:8px;margin-top:12px">
       <input type="checkbox" id="addr-watch" style="width:auto"> Als „Frag mich"-Adresse markieren
     </label>
     <div style="margin-top:16px;display:flex;gap:8px">
-      <button class="btn btn-secondary" style="flex:1" onclick="closeModal('modal-address')">Abbrechen</button>
-      <button class="btn btn-primary" style="flex:1" onclick="saveAddress()">Speichern</button>
+      <button class="btn btn-secondary" style="flex:1" onclick="closeModal('m-addr')">Abbrechen</button>
+      <button class="btn btn-primary" style="flex:1" onclick="saveAddr()">Speichern</button>
     </div>
   </div>
 </div>
 
-<div class="modal-overlay" id="modal-settings">
+<!-- MODAL: Settings -->
+<div class="modal-overlay" id="m-settings">
   <div class="modal">
-    <div class="modal-title">Einstellungen <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-settings')">✕</button></div>
+    <div class="modal-title">Einstellungen <button class="btn btn-secondary btn-sm" onclick="closeModal('m-settings')">✕</button></div>
     <label>Anthropic API Key</label>
-    <input type="password" id="set-anthropic-key" placeholder="sk-ant-...">
-    <p class="apikey-note">Wird lokal im Browser gespeichert</p>
+    <input type="password" id="set-key" placeholder="sk-ant-...">
+    <p style="font-size:11px;color:var(--muted);margin-top:4px">Lokal gespeichert (localStorage)</p>
+    <label style="margin-top:12px">Heimadresse (Standard-Start für Fahrten)</label>
+    <input type="text" id="set-home" placeholder="Straße, PLZ Ort">
     <div style="margin-top:16px;display:flex;gap:8px">
-      <button class="btn btn-secondary" style="flex:1" onclick="closeModal('modal-settings')">Abbrechen</button>
+      <button class="btn btn-secondary" style="flex:1" onclick="closeModal('m-settings')">Abbrechen</button>
       <button class="btn btn-primary" style="flex:1" onclick="saveSettings()">Speichern</button>
     </div>
   </div>
 </div>
 
-<div class="modal-overlay" id="modal-nearby">
+<!-- MODAL: Nearby -->
+<div class="modal-overlay" id="m-nearby">
   <div class="modal">
-    <div class="modal-title">Adresse erkannt <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-nearby')">✕</button></div>
+    <div class="modal-title">Adresse erkannt <button class="btn btn-secondary btn-sm" onclick="closeModal('m-nearby')">✕</button></div>
     <div id="nearby-content"></div>
   </div>
 </div>
@@ -235,277 +257,467 @@ input:focus,select:focus{border-color:var(--accent)}
 <script>
 const SB_URL='https://adtamsdadhtsoyvphjax.supabase.co';
 const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFkdGFtc2RhZGh0c295dnBoamF4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE0MTkyOTAsImV4cCI6MjA5Njk5NTI5MH0.H8XWreBTyL7WLYrpAWgl5A6CejM6sT-a244aEIVJgwk';
+const {createClient}=supabase;
+const db=createClient(SB_URL,SB_KEY);
 
-const {createClient} = supabase;
-const db = createClient(SB_URL, SB_KEY);
+let proj=null,projects=[],invoices=[],trips=[],addresses=[],detail=null;
+let curFile=null;
 
-let currentProject=null, projects=[], invoices=[], trips=[], addresses=[];
-let currentInvoiceFile=null;
+const today=()=>new Date().toISOString().split('T')[0];
+const fmt=v=>Number(v||0).toLocaleString('de-DE',{style:'currency',currency:'EUR'});
+const getKey=()=>localStorage.getItem('anthropic_key')||'';
+const esc=s=>(s||'').replace(/'/g,"\\'");
 
-// Realtime
-function initRealtime(){
-  db.channel('global')
-    .on('postgres_changes',{event:'*',schema:'public',table:'projects'},()=>loadProjects())
-    .on('postgres_changes',{event:'*',schema:'public',table:'invoices'},()=>{if(currentProject)loadInvoices()})
-    .on('postgres_changes',{event:'*',schema:'public',table:'trips'},()=>{if(currentProject)loadTrips()})
-    .on('postgres_changes',{event:'*',schema:'public',table:'addresses'},()=>{if(currentProject)loadAddresses()})
-    .subscribe(status=>{
-      const dot=document.getElementById('rt-dot');
-      dot.classList.toggle('connected', status==='SUBSCRIBED');
-    });
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2500);
 }
-
-const toast = msg=>{const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500)};
-
-function switchTab(name){
-  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',['projekte','rechnungen','fahrten','uebersicht'][i]===name));
-  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-  document.getElementById('tab-'+name).classList.add('active');
-  if(name==='rechnungen') renderInvoices();
-  if(name==='fahrten'){renderTrips();renderAddresses();}
-  if(name==='uebersicht') renderOverview();
-}
-
 const openModal=id=>document.getElementById(id).classList.add('open');
 const closeModal=id=>document.getElementById(id).classList.remove('open');
 
-function openSettings(){
-  document.getElementById('set-anthropic-key').value=localStorage.getItem('anthropic_key')||'';
-  openModal('modal-settings');
+// ── REALTIME ──────────────────────────────────────────────
+function initRealtime(){
+  db.channel('rt')
+    .on('postgres_changes',{event:'*',schema:'public',table:'projects'},()=>loadProjects())
+    .on('postgres_changes',{event:'*',schema:'public',table:'invoices'},async()=>{if(proj)await loadInvoices();})
+    .on('postgres_changes',{event:'*',schema:'public',table:'trips'},async()=>{if(proj)await loadTrips();})
+    .on('postgres_changes',{event:'*',schema:'public',table:'addresses'},async()=>{if(proj)await loadAddresses();})
+    .on('postgres_changes',{event:'*',schema:'public',table:'project_details'},async()=>{if(proj)await loadDetail();})
+    .subscribe(s=>document.getElementById('rt-dot').classList.toggle('on',s==='SUBSCRIBED'));
 }
-function saveSettings(){
-  localStorage.setItem('anthropic_key',document.getElementById('set-anthropic-key').value.trim());
-  closeModal('modal-settings');
-  toast('Gespeichert');
-}
-const getKey=()=>localStorage.getItem('anthropic_key')||'';
 
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',['projekte','uebersicht','rechnungen','fahrten'][i]===name));
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  if(name==='uebersicht') renderOverview();
+  if(name==='rechnungen') renderInvoices();
+  if(name==='fahrten'){renderTrips();renderAddresses();}
+}
+
+// ── PROJEKTE ──────────────────────────────────────────────
 async function loadProjects(){
-  const {data}=await db.from('projects').select('*').order('created_at',{ascending:false});
-  projects=data||[];
+  const {data,error}=await db.from('projects').select('*').order('created_at',{ascending:false});
+  if(!error) projects=data||[];
   renderProjects();
 }
 function renderProjects(){
   const el=document.getElementById('project-list');
-  if(!projects.length){el.innerHTML='<div class="empty">Noch keine Projekte</div>';return}
+  if(!projects.length){el.innerHTML='<div class="empty">Noch keine Projekte</div>';return;}
   el.innerHTML=projects.map(p=>`
-    <div class="project-item ${currentProject?.id===p.id?'selected':''}" onclick="selectProject('${p.id}')">
-      <div><div class="pname">${p.name}</div><div class="psub">${new Date(p.created_at).toLocaleDateString('de-DE')}</div></div>
-      <span style="color:var(--accent);font-size:12px">→</span>
+    <div class="proj-item ${proj?.id===p.id?'sel':''}" onclick="selectProject('${p.id}')">
+      <div><div class="proj-name">${p.name}</div><div class="proj-sub">${new Date(p.created_at).toLocaleDateString('de-DE')}</div></div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();editProject('${p.id}')">✏️</button>
+        <span style="color:var(--accent);font-size:12px">→</span>
+      </div>
     </div>`).join('');
 }
-function selectProject(id){
-  currentProject=projects.find(p=>p.id===id);
-  renderProjects();
-  loadInvoices();loadTrips();loadAddresses();
-  toast('Projekt: '+currentProject.name);
+function openNewProject(){
+  document.getElementById('proj-name-input').value='';
+  document.getElementById('proj-edit-id').value='';
+  document.getElementById('m-proj-title').textContent='Neues Projekt';
+  openModal('m-project');
 }
-function openNewProject(){document.getElementById('new-project-name').value='';openModal('modal-project');}
+function editProject(id){
+  const p=projects.find(x=>x.id===id);if(!p)return;
+  document.getElementById('proj-name-input').value=p.name;
+  document.getElementById('proj-edit-id').value=id;
+  document.getElementById('m-proj-title').textContent='Projekt umbenennen';
+  openModal('m-project');
+}
 async function saveProject(){
-  const name=document.getElementById('new-project-name').value.trim();
-  if(!name)return;
-  const {error}=await db.from('projects').insert({name});
-  if(error){toast('Fehler: '+error.message);return}
-  closeModal('modal-project');
+  const name=document.getElementById('proj-name-input').value.trim();
+  const editId=document.getElementById('proj-edit-id').value;
+  if(!name){toast('Bitte Namen eingeben');return;}
+  let error;
+  if(editId){
+    ({error}=await db.from('projects').update({name}).eq('id',editId));
+    if(!error&&proj?.id===editId) proj.name=name;
+  } else {
+    ({error}=await db.from('projects').insert({name}));
+  }
+  if(error){toast('Fehler: '+error.message);return;}
+  closeModal('m-project');
+  await loadProjects();
+}
+async function selectProject(id){
+  proj=projects.find(p=>p.id===id);
+  renderProjects();
+  await Promise.all([loadInvoices(),loadTrips(),loadAddresses(),loadDetail()]);
+  toast('Projekt: '+proj.name);
 }
 
+// ── DETAIL / ÜBERSICHT ────────────────────────────────────
+async function loadDetail(){
+  if(!proj)return;
+  const {data}=await db.from('project_details').select('*').eq('project_id',proj.id).maybeSingle();
+  detail=data||null;
+  renderOverview();
+}
+async function saveDetail(){
+  if(!proj)return;
+  const pp=parseFloat(document.getElementById('d-purchase').value)||0;
+  const nv=document.getElementById('d-notary').value;
+  const cv=document.getElementById('d-court').value;
+  const bv=document.getElementById('d-broker').value;
+  const sv=document.getElementById('d-sale').value;
+  const notary=nv!==''?parseFloat(nv):parseFloat((pp*0.015).toFixed(2));
+  const court=cv!==''?parseFloat(cv):parseFloat((pp*0.005).toFixed(2));
+  const broker=bv!==''?parseFloat(bv):parseFloat((pp*0.0357).toFixed(2));
+  const sale=sv!==''?parseFloat(sv):null;
+  const payload={project_id:proj.id,purchase_price:pp,notary_costs:notary,court_costs:court,broker_costs:broker,sale_price:sale,updated_at:new Date().toISOString()};
+  let error;
+  if(detail){
+    ({error}=await db.from('project_details').update(payload).eq('project_id',proj.id));
+  } else {
+    ({error}=await db.from('project_details').insert(payload));
+  }
+  if(error){toast('Fehler: '+error.message);return;}
+  toast('Gespeichert');
+  await loadDetail();
+}
+function calcDetail(){
+  const d=detail||{};
+  const pp=Number(d.purchase_price||0);
+  const notary=Number(d.notary_costs!=null?d.notary_costs:pp*0.015);
+  const court=Number(d.court_costs!=null?d.court_costs:pp*0.005);
+  const broker=Number(d.broker_costs!=null?d.broker_costs:pp*0.0357);
+  const invTotal=invoices.reduce((s,i)=>s+Number(i.amount_gross||0),0);
+  const arbeit=invoices.filter(i=>i.cost_type==='Arbeitslohn').reduce((s,i)=>s+Number(i.amount_gross||0),0);
+  const mat=invoices.filter(i=>i.cost_type==='Material').reduce((s,i)=>s+Number(i.amount_gross||0),0);
+  const totalCosts=pp+notary+court+broker+invTotal;
+  const sale=Number(d.sale_price||0);
+  const grossProfit=sale>0?sale-totalCosts:null;
+  const tax=grossProfit!=null&&grossProfit>0?grossProfit*0.5:0;
+  const netProfit=grossProfit!=null?grossProfit-tax:null;
+  return {pp,notary,court,broker,invTotal,arbeit,mat,totalCosts,sale,grossProfit,tax,netProfit};
+}
+function renderOverview(){
+  const el=document.getElementById('overview-content');
+  if(!proj){el.innerHTML='<div class="empty">Bitte zuerst ein Projekt auswählen</div>';return;}
+  const d=detail||{};
+  const {pp,notary,court,broker,invTotal,arbeit,mat,totalCosts,sale,grossProfit,tax,netProfit}=calcDetail();
+  const totalKm=trips.reduce((s,t)=>s+Number(t.distance_km||0),0);
+  const clKm=trips.filter(t=>t.driver==='CL').reduce((s,t)=>s+Number(t.distance_km||0),0);
+  const ylKm=trips.filter(t=>t.driver==='YL').reduce((s,t)=>s+Number(t.distance_km||0),0);
+
+  el.innerHTML=`
+  <div class="card">
+    <div class="card-title">📋 ${proj.name}<button class="btn btn-secondary btn-sm" onclick="exportPDF()">📄 PDF</button></div>
+    <label>Kaufpreis (€)</label>
+    <input type="number" id="d-purchase" value="${d.purchase_price||''}" placeholder="0.00" step="0.01" min="0" oninput="updateAutoPlaceholders()">
+    <label>Notarkosten (€) <span style="font-size:11px;color:var(--muted)">Standard: 1,5%</span></label>
+    <input type="number" id="d-notary" value="${d.notary_costs!=null?d.notary_costs:''}" placeholder="${(pp*0.015).toFixed(2)}" step="0.01" min="0">
+    <label>Gerichtskosten (€) <span style="font-size:11px;color:var(--muted)">Standard: 0,5%</span></label>
+    <input type="number" id="d-court" value="${d.court_costs!=null?d.court_costs:''}" placeholder="${(pp*0.005).toFixed(2)}" step="0.01" min="0">
+    <label>Maklercourtage (€) <span style="font-size:11px;color:var(--muted)">Standard: 3,57%</span></label>
+    <input type="number" id="d-broker" value="${d.broker_costs!=null?d.broker_costs:''}" placeholder="${(pp*0.0357).toFixed(2)}" step="0.01" min="0">
+    <label>Verkaufspreis (€) <span style="font-size:11px;color:var(--muted)">Leer lassen bis Verkauf</span></label>
+    <input type="number" id="d-sale" value="${d.sale_price!=null?d.sale_price:''}" placeholder="Noch nicht verkauft" step="0.01" min="0">
+    <button class="btn btn-primary btn-full" style="margin-top:14px" onclick="saveDetail()">💾 Speichern</button>
+  </div>
+  <div class="card">
+    <div class="card-title">💶 Kostenübersicht</div>
+    <div class="summary-row"><span>Kaufpreis</span><span>${fmt(pp)}</span></div>
+    <div class="summary-row"><span>Notarkosten</span><span>${fmt(notary)}</span></div>
+    <div class="summary-row"><span>Gerichtskosten</span><span>${fmt(court)}</span></div>
+    <div class="summary-row"><span>Maklercourtage</span><span>${fmt(broker)}</span></div>
+    <div class="summary-row"><span>Umbaukosten gesamt</span><span>${fmt(invTotal)}</span></div>
+    <div class="summary-row" style="font-size:12px;color:var(--muted);padding-left:10px"><span>davon Arbeitslohn</span><span>${fmt(arbeit)}</span></div>
+    <div class="summary-row" style="font-size:12px;color:var(--muted);padding-left:10px"><span>davon Material</span><span>${fmt(mat)}</span></div>
+    <div class="summary-row total" style="padding-top:8px"><span>Gesamtausgaben</span><span>${fmt(totalCosts)}</span></div>
+  </div>
+  <div class="card">
+    <div class="card-title">📈 Ergebnis</div>
+    ${sale>0?`
+      <div class="summary-row"><span>Verkaufspreis</span><span>${fmt(sale)}</span></div>
+      <div class="summary-row"><span>Gesamtausgaben</span><span>− ${fmt(totalCosts)}</span></div>
+      <div class="summary-row"><span>Bruttogewinn</span><span>${fmt(grossProfit)}</span></div>
+      <div class="summary-row"><span>Steuern (50%)</span><span>− ${fmt(tax)}</span></div>
+      <div class="profit-box ${netProfit>=0?'pos':'neg'}">
+        <div class="profit-label">Gewinn nach Steuern</div>
+        <div class="profit-val" style="color:${netProfit>=0?'var(--success)':'var(--danger)'}">${fmt(netProfit)}</div>
+      </div>`:`
+      <div class="profit-box neutral">
+        <div class="profit-label">Noch nicht verkauft</div>
+        <div class="profit-val" style="color:var(--muted)">–</div>
+      </div>`}
+  </div>
+  <div class="card">
+    <div class="card-title">🚗 Fahrten</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div style="background:#f8f8f6;border-radius:10px;padding:12px"><div style="font-size:11px;color:var(--muted);margin-bottom:4px">Gesamt km</div><div style="font-size:18px;font-weight:600;color:var(--accent)">${totalKm.toFixed(1)} km</div></div>
+      <div style="background:#f8f8f6;border-radius:10px;padding:12px"><div style="font-size:11px;color:var(--muted);margin-bottom:4px">Fahrten</div><div style="font-size:18px;font-weight:600">${trips.length}</div></div>
+      <div style="background:#f8f8f6;border-radius:10px;padding:12px"><div style="font-size:11px;color:var(--muted);margin-bottom:4px">CL</div><div style="font-size:18px;font-weight:600">${clKm.toFixed(1)} km</div></div>
+      <div style="background:#f8f8f6;border-radius:10px;padding:12px"><div style="font-size:11px;color:var(--muted);margin-bottom:4px">YL</div><div style="font-size:18px;font-weight:600">${ylKm.toFixed(1)} km</div></div>
+    </div>
+  </div>`;
+}
+function updateAutoPlaceholders(){
+  const pp=parseFloat(document.getElementById('d-purchase').value)||0;
+  const n=document.getElementById('d-notary');
+  const c=document.getElementById('d-court');
+  const b=document.getElementById('d-broker');
+  if(!n.value) n.placeholder=(pp*0.015).toFixed(2);
+  if(!c.value) c.placeholder=(pp*0.005).toFixed(2);
+  if(!b.value) b.placeholder=(pp*0.0357).toFixed(2);
+}
+
+// ── RECHNUNGEN ────────────────────────────────────────────
 async function loadInvoices(){
-  if(!currentProject)return;
-  const {data}=await db.from('invoices').select('*').eq('project_id',currentProject.id).order('date',{ascending:false});
-  invoices=data||[];
+  if(!proj)return;
+  const {data,error}=await db.from('invoices').select('*').eq('project_id',proj.id).order('date',{ascending:false});
+  if(!error) invoices=data||[];
   renderInvoices();
   renderOverview();
 }
 function renderInvoices(){
-  if(!currentProject){document.getElementById('no-project-msg').style.display='block';document.getElementById('rechnungen-content').style.display='none';return}
-  document.getElementById('no-project-msg').style.display='none';
-  document.getElementById('rechnungen-content').style.display='block';
-  document.getElementById('rechnung-project-name').textContent=currentProject.name;
+  const noProj=document.getElementById('inv-no-proj');
+  const content=document.getElementById('inv-content');
+  if(!proj){noProj.style.display='block';content.style.display='none';return;}
+  noProj.style.display='none';content.style.display='block';
+  document.getElementById('inv-proj-name').textContent=proj.name;
   const el=document.getElementById('invoice-list');
-  if(!invoices.length){el.innerHTML='<div class="empty">Keine Rechnungen</div>';return}
+  if(!invoices.length){el.innerHTML='<div class="empty">Keine Rechnungen vorhanden</div>';return;}
   el.innerHTML=invoices.map(inv=>`
-    <div class="invoice-item">
-      <div class="invoice-info">
-        <div class="name">${inv.supplier||'–'}</div>
-        <div class="sub">${inv.date?new Date(inv.date).toLocaleDateString('de-DE'):''} · <span class="badge ${inv.cost_type==='Arbeitslohn'?'badge-arbeit':'badge-material'}">${inv.cost_type}</span></div>
+    <div class="inv-row">
+      <div class="inv-info">
+        <div class="inv-name">${inv.supplier||'–'}</div>
+        <div class="inv-sub">${inv.date?new Date(inv.date).toLocaleDateString('de-DE'):''} · <span class="badge ${inv.cost_type==='Arbeitslohn'?'badge-arbeit':'badge-material'}">${inv.cost_type}</span></div>
       </div>
-      <div>
-        <div class="invoice-amount">${Number(inv.amount_gross).toLocaleString('de-DE',{style:'currency',currency:'EUR'})}</div>
-        ${inv.pdf_path?`<div style="text-align:right;margin-top:4px"><button class="btn btn-secondary btn-sm" onclick="downloadPdf('${inv.pdf_path}')">📄</button></div>`:''}
+      <div style="text-align:right;flex-shrink:0">
+        <div class="inv-amt">${fmt(inv.amount_gross)}</div>
+        ${inv.pdf_path?`<button class="btn btn-secondary btn-sm" style="margin-top:4px" onclick="dlPdf('${esc(inv.pdf_path)}')">📄</button>`:''}
       </div>
     </div>`).join('');
 }
 function openAddInvoice(){
-  if(!currentProject){toast('Bitte erst Projekt auswählen');return}
+  if(!proj){toast('Bitte erst Projekt auswählen');return;}
   document.getElementById('inv-supplier').value='';
   document.getElementById('inv-date').value=today();
   document.getElementById('inv-amount').value='';
-  document.getElementById('inv-cost-type').value='Arbeitslohn';
-  document.querySelectorAll('#modal-invoice .pill').forEach((p,i)=>p.classList.toggle('active',i===0));
-  document.getElementById('invoice-file').value='';
-  document.getElementById('ai-status').style.display='none';
-  currentInvoiceFile=null;
-  openModal('modal-invoice');
+  document.getElementById('inv-cost').value='Arbeitslohn';
+  document.querySelectorAll('#m-invoice .pill').forEach((p,i)=>p.classList.toggle('on',i===0));
+  document.getElementById('inv-file').value='';
+  document.getElementById('inv-file-name').style.display='none';
+  document.getElementById('ai-bar').style.display='none';
+  curFile=null;
+  openModal('m-invoice');
 }
-async function handleFileUpload(input){
+async function handleFile(input){
   const file=input.files[0];if(!file)return;
-  currentInvoiceFile=file;
-  const key=getKey();if(!key){toast('Kein API Key hinterlegt');return}
-  const statusEl=document.getElementById('ai-status');
-  statusEl.style.display='flex';statusEl.classList.add('loading');
-  document.getElementById('ai-status-text').textContent='KI liest Rechnung aus…';
-  const b64=await toBase64(file);
-  const isPdf=file.type==='application/pdf';
+  curFile=file;
+  document.getElementById('inv-file-name').textContent='📎 '+file.name;
+  document.getElementById('inv-file-name').style.display='block';
+  const key=getKey();if(!key){toast('Kein API Key hinterlegt');return;}
+  const bar=document.getElementById('ai-bar');
+  bar.style.display='flex';bar.classList.add('spin');
+  document.getElementById('ai-bar-text').textContent='KI liest Rechnung aus…';
   try{
-    const body={model:'claude-sonnet-4-6',max_tokens:500,messages:[{role:'user',content:[
-      isPdf?{type:'document',source:{type:'base64',media_type:'application/pdf',data:b64}}:{type:'image',source:{type:'base64',media_type:file.type,data:b64}},
-      {type:'text',text:'Extrahiere: Lieferant, Datum (YYYY-MM-DD), Bruttobetrag. Nur JSON: {"supplier":"...","date":"YYYY-MM-DD","amount":0.00}'}
-    ]}]};
+    const b64=await toB64(file);
+    const isPdf=file.type==='application/pdf';
+    const body={
+      model:'claude-sonnet-4-6',max_tokens:500,
+      messages:[{role:'user',content:[
+        isPdf?{type:'document',source:{type:'base64',media_type:'application/pdf',data:b64}}
+             :{type:'image',source:{type:'base64',media_type:file.type,data:b64}},
+        {type:'text',text:'Extrahiere: Lieferant, Datum (YYYY-MM-DD), Bruttobetrag. Antworte NUR mit JSON ohne Markdown: {"supplier":"...","date":"YYYY-MM-DD","amount":0.00}'}
+      ]}]
+    };
     const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify(body)});
+    if(!r.ok) throw new Error('API Fehler '+r.status);
     const data=await r.json();
-    const txt=data.content?.find(c=>c.type==='text')?.text||'';
+    const txt=(data.content||[]).find(c=>c.type==='text')?.text||'';
     const parsed=JSON.parse(txt.replace(/```json|```/g,'').trim());
-    if(parsed.supplier)document.getElementById('inv-supplier').value=parsed.supplier;
-    if(parsed.date)document.getElementById('inv-date').value=parsed.date;
-    if(parsed.amount)document.getElementById('inv-amount').value=parsed.amount;
-    document.getElementById('ai-status-text').textContent='✅ Erkannt – bitte prüfen';
-  }catch{document.getElementById('ai-status-text').textContent='⚠️ Nicht erkannt – manuell eingeben';}
-  statusEl.classList.remove('loading');
+    if(parsed.supplier) document.getElementById('inv-supplier').value=parsed.supplier;
+    if(parsed.date) document.getElementById('inv-date').value=parsed.date;
+    if(parsed.amount) document.getElementById('inv-amount').value=parsed.amount;
+    document.getElementById('ai-bar-text').textContent='✅ Erkannt – bitte prüfen';
+  }catch(e){
+    document.getElementById('ai-bar-text').textContent='⚠️ Nicht erkannt – manuell eingeben';
+  }
+  bar.classList.remove('spin');
 }
-const toBase64=f=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=rej;r.readAsDataURL(f);});
-const selectCostType=(v,el)=>{document.getElementById('inv-cost-type').value=v;document.querySelectorAll('#modal-invoice .pill').forEach(p=>p.classList.remove('active'));el.classList.add('active');};
-const selectDriver=(v,el)=>{document.getElementById('trip-driver').value=v;document.querySelectorAll('#modal-trip .pill').forEach(p=>p.classList.remove('active'));el.classList.add('active');};
-
+const toB64=f=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=rej;r.readAsDataURL(f);});
+const setCost=(v,el)=>{document.getElementById('inv-cost').value=v;document.querySelectorAll('#m-invoice .pill').forEach(p=>p.classList.remove('on'));el.classList.add('on');};
+const setDriver=(v,el)=>{document.getElementById('trip-drv').value=v;document.querySelectorAll('#m-trip .pill').forEach(p=>p.classList.remove('on'));el.classList.add('on');};
 async function saveInvoice(){
-  if(!currentProject)return;
+  if(!proj)return;
   const supplier=document.getElementById('inv-supplier').value.trim();
   const date=document.getElementById('inv-date').value;
   const amount=parseFloat(document.getElementById('inv-amount').value);
-  const cost_type=document.getElementById('inv-cost-type').value;
-  if(!supplier||!date||isNaN(amount)){toast('Alle Felder ausfüllen');return}
+  const cost_type=document.getElementById('inv-cost').value;
+  if(!supplier||!date||isNaN(amount)||amount<=0){toast('Bitte alle Felder korrekt ausfüllen');return;}
   let pdf_path=null;
-  if(currentInvoiceFile){
-    const fname=`${currentProject.id}/${Date.now()}_${currentInvoiceFile.name}`;
-    await db.storage.from('rechnungen').upload(fname,currentInvoiceFile);
-    pdf_path=fname;
+  if(curFile){
+    const fname=`${proj.id}/${Date.now()}_${curFile.name}`;
+    const {error:upErr}=await db.storage.from('rechnungen').upload(fname,curFile);
+    if(!upErr) pdf_path=fname;
+    else toast('PDF-Upload fehlgeschlagen, Daten werden trotzdem gespeichert');
   }
-  const {error}=await db.from('invoices').insert({project_id:currentProject.id,supplier,date,amount_gross:amount,cost_type,pdf_path});
-  if(error){toast('Fehler: '+error.message);return}
-  closeModal('modal-invoice');toast('Rechnung gespeichert');
+  const {error}=await db.from('invoices').insert({project_id:proj.id,supplier,date,amount_gross:amount,cost_type,pdf_path});
+  if(error){toast('Fehler: '+error.message);return;}
+  closeModal('m-invoice');toast('Rechnung gespeichert');
 }
-async function downloadPdf(path){
-  const {data}=await db.storage.from('rechnungen').download(path);
-  if(!data){toast('PDF nicht gefunden');return}
+async function dlPdf(path){
+  const {data,error}=await db.storage.from('rechnungen').download(path);
+  if(error||!data){toast('PDF nicht gefunden');return;}
   const a=document.createElement('a');a.href=URL.createObjectURL(data);a.download=path.split('/').pop();a.click();
 }
 
+// ── FAHRTEN ───────────────────────────────────────────────
 async function loadTrips(){
-  if(!currentProject)return;
-  const {data}=await db.from('trips').select('*').eq('project_id',currentProject.id).order('date',{ascending:false});
-  trips=data||[];
-  renderTrips();renderOverview();
+  if(!proj)return;
+  const {data,error}=await db.from('trips').select('*').eq('project_id',proj.id).order('date',{ascending:false});
+  if(!error) trips=data||[];
+  renderTrips();
+  renderOverview();
 }
 function renderTrips(){
   const el=document.getElementById('trip-list');
-  if(!trips.length){el.innerHTML='<div class="empty">Keine Fahrten</div>';return}
+  if(!trips.length){el.innerHTML='<div class="empty">Keine Fahrten erfasst</div>';return;}
   el.innerHTML=trips.map(t=>`
-    <div class="trip-item">
-      <div class="driver-badge ${t.driver==='YL'?'yl':''}">${t.driver}</div>
+    <div class="trip-row">
+      <div class="drv ${t.driver==='YL'?'yl':''}">${t.driver}</div>
       <div style="flex:1;min-width:0">
-        <div style="font-size:13px;font-weight:500">${t.origin} → ${t.destination}</div>
-        <div style="font-size:12px;color:var(--muted)">${t.date?new Date(t.date).toLocaleDateString('de-DE'):''}</div>
+        <div style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.origin} → ${t.destination}</div>
+        <div style="font-size:12px;color:var(--muted)">${t.date?new Date(t.date).toLocaleDateString('de-DE'):''}${t.reason?' · '+t.reason:''}</div>
       </div>
-      <div style="font-size:14px;font-weight:600;white-space:nowrap">${Number(t.distance_km).toFixed(1)} km</div>
+      <div style="font-size:14px;font-weight:600;white-space:nowrap;margin-left:8px">${Number(t.distance_km).toFixed(1)} km</div>
     </div>`).join('');
 }
 async function loadAddresses(){
-  if(!currentProject)return;
-  const {data}=await db.from('addresses').select('*').eq('project_id',currentProject.id).order('label');
-  addresses=data||[];
-  renderAddresses();updateDatalist();
+  if(!proj)return;
+  const {data,error}=await db.from('addresses').select('*').eq('project_id',proj.id).order('label');
+  if(!error) addresses=data||[];
+  renderAddresses();
 }
 function renderAddresses(){
-  const el=document.getElementById('address-list');
-  if(!addresses.length){el.innerHTML='<div class="empty" style="padding:16px 0">Keine Adressen</div>';return}
+  const el=document.getElementById('addr-list');
+  if(!addresses.length){el.innerHTML='<div class="empty" style="padding:12px 0">Keine Adressen hinterlegt</div>';return;}
   el.innerHTML=addresses.map(a=>`
-    <div class="addr-item">
-      <div><div class="addr-label">${a.label}${a.watch?' 📍':''}</div><div class="addr-addr">${a.address}</div></div>
-      <button class="btn btn-danger btn-sm" onclick="deleteAddress('${a.id}')">🗑️</button>
+    <div class="addr-row">
+      <div><div style="font-weight:500">${a.label}${a.watch?' 📍':''}</div><div style="font-size:12px;color:var(--muted)">${a.address}</div></div>
+      <div style="display:flex;gap:6px;flex-shrink:0">
+        <button class="btn btn-secondary btn-sm" onclick="editAddr('${a.id}')">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="delAddr('${a.id}')">🗑️</button>
+      </div>
     </div>`).join('');
 }
-function updateDatalist(){
-  const opts=addresses.map(a=>`<option value="${a.address}">${a.label}</option>`).join('');
-  document.getElementById('addr-suggestions-from').innerHTML=opts;
-  document.getElementById('addr-suggestions-to').innerHTML=opts;
+function renderAddrPills(){
+  const home=localStorage.getItem('home_address')||'';
+  let fromH='',toH='';
+  if(home){
+    fromH+=`<span class="addr-pill" onclick="setField('trip-from','${esc(home)}')">🏠 Heim</span>`;
+    toH+=`<span class="addr-pill" onclick="setField('trip-to','${esc(home)}')">🏠 Heim</span>`;
+  }
+  addresses.forEach(a=>{
+    fromH+=`<span class="addr-pill" onclick="setField('trip-from','${esc(a.address)}')">${a.label}</span>`;
+    toH+=`<span class="addr-pill" onclick="setField('trip-to','${esc(a.address)}')">${a.label}</span>`;
+  });
+  document.getElementById('from-pills').innerHTML=fromH;
+  document.getElementById('to-pills').innerHTML=toH;
 }
+const setField=(id,val)=>{document.getElementById(id).value=val;};
 function openAddTrip(){
-  if(!currentProject){toast('Bitte erst Projekt auswählen');return}
+  if(!proj){toast('Bitte erst Projekt auswählen');return;}
   document.getElementById('trip-date').value=today();
-  document.getElementById('trip-driver').value='CL';
-  document.querySelectorAll('#modal-trip .pill').forEach((p,i)=>p.classList.toggle('active',i===0));
-  document.getElementById('trip-origin').value='';
-  document.getElementById('trip-dest').value='';
+  document.getElementById('trip-drv').value='CL';
+  document.querySelectorAll('#m-trip .pill').forEach((p,i)=>p.classList.toggle('on',i===0));
+  document.getElementById('trip-from').value=localStorage.getItem('home_address')||'';
+  document.getElementById('trip-to').value='';
+  document.getElementById('trip-reason').value='';
   document.getElementById('trip-km').value='';
-  document.getElementById('km-status').style.display='none';
-  openModal('modal-trip');
+  document.getElementById('km-bar').style.display='none';
+  renderAddrPills();
+  openModal('m-trip');
 }
 async function calcKm(){
-  const origin=document.getElementById('trip-origin').value.trim();
-  const dest=document.getElementById('trip-dest').value.trim();
-  if(!origin||!dest){toast('Start und Ziel eingeben');return}
-  const key=getKey();if(!key){toast('Kein API Key');return}
-  const statusEl=document.getElementById('km-status');
-  statusEl.style.display='flex';statusEl.classList.add('loading');
-  document.getElementById('km-status-text').textContent='KI ermittelt Entfernung…';
+  const from=document.getElementById('trip-from').value.trim();
+  const to=document.getElementById('trip-to').value.trim();
+  if(!from||!to){toast('Start und Ziel eingeben');return;}
+  const key=getKey();if(!key){toast('Kein API Key');return;}
+  const bar=document.getElementById('km-bar');
+  bar.style.display='flex';bar.classList.add('spin');
+  document.getElementById('km-bar-text').textContent='KI ermittelt Entfernung…';
   try{
-    const body={model:'claude-sonnet-4-6',max_tokens:200,tools:[{type:'web_search_20250305',name:'web_search'}],
-      messages:[{role:'user',content:`Wie viele Kilometer Autofahrt von "${origin}" nach "${dest}"? Nur eine Zahl, z.B. 12.5`}]};
+    const body={
+      model:'claude-sonnet-4-6',max_tokens:200,
+      tools:[{type:'web_search_20250305',name:'web_search'}],
+      messages:[{role:'user',content:`Autofahrt von "${from}" nach "${to}": wie viele km? Antworte NUR mit einer Zahl, z.B. 12.5`}]
+    };
     const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify(body)});
+    if(!r.ok) throw new Error('API Fehler '+r.status);
     const data=await r.json();
-    const txt=data.content?.filter(c=>c.type==='text').map(c=>c.text).join('')||'';
+    const txt=(data.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('');
     const match=txt.match(/\d+[.,]?\d*/);
     if(match){
       const km=parseFloat(match[0].replace(',','.'));
       document.getElementById('trip-km').value=km.toFixed(1);
-      document.getElementById('km-status-text').textContent=`✅ ${km.toFixed(1)} km – bitte prüfen`;
-    }else document.getElementById('km-status-text').textContent='⚠️ Nicht ermittelt – manuell eingeben';
-  }catch{document.getElementById('km-status-text').textContent='⚠️ Fehler – manuell eingeben';}
-  statusEl.classList.remove('loading');
+      document.getElementById('km-bar-text').textContent=`✅ ${km.toFixed(1)} km – bitte prüfen`;
+    } else {
+      document.getElementById('km-bar-text').textContent='⚠️ Nicht ermittelt – bitte manuell eingeben';
+    }
+  }catch(e){
+    document.getElementById('km-bar-text').textContent='⚠️ Fehler – bitte manuell eingeben';
+  }
+  bar.classList.remove('spin');
 }
 async function saveTrip(){
-  if(!currentProject)return;
+  if(!proj)return;
   const date=document.getElementById('trip-date').value;
-  const driver=document.getElementById('trip-driver').value;
-  const origin=document.getElementById('trip-origin').value.trim();
-  const destination=document.getElementById('trip-dest').value.trim();
+  const driver=document.getElementById('trip-drv').value;
+  const origin=document.getElementById('trip-from').value.trim();
+  const destination=document.getElementById('trip-to').value.trim();
+  const reason=document.getElementById('trip-reason').value.trim()||null;
   const km=parseFloat(document.getElementById('trip-km').value);
-  if(!date||!origin||!destination||isNaN(km)){toast('Alle Felder ausfüllen');return}
-  const {error}=await db.from('trips').insert({project_id:currentProject.id,date,driver,origin,destination,distance_km:km});
-  if(error){toast('Fehler: '+error.message);return}
-  closeModal('modal-trip');toast('Fahrt gespeichert');
+  if(!date||!origin||!destination||isNaN(km)||km<=0){toast('Bitte alle Felder korrekt ausfüllen');return;}
+  const {error}=await db.from('trips').insert({project_id:proj.id,date,driver,origin,destination,distance_km:km,reason});
+  if(error){toast('Fehler: '+error.message);return;}
+  closeModal('m-trip');toast('Fahrt gespeichert');
 }
-function openAddAddress(){
-  if(!currentProject){toast('Bitte erst Projekt auswählen');return}
-  document.getElementById('addr-label').value='';
-  document.getElementById('addr-address').value='';
+function openAddAddr(){
+  if(!proj){toast('Bitte erst Projekt auswählen');return;}
+  document.getElementById('addr-edit-id').value='';
+  document.getElementById('addr-label-in').value='';
+  document.getElementById('addr-addr-in').value='';
   document.getElementById('addr-watch').checked=false;
-  openModal('modal-address');
+  document.getElementById('m-addr-title').textContent='Adresse hinterlegen';
+  openModal('m-addr');
 }
-async function saveAddress(){
-  if(!currentProject)return;
-  const label=document.getElementById('addr-label').value.trim();
-  const address=document.getElementById('addr-address').value.trim();
+function editAddr(id){
+  const a=addresses.find(x=>x.id===id);if(!a)return;
+  document.getElementById('addr-edit-id').value=id;
+  document.getElementById('addr-label-in').value=a.label;
+  document.getElementById('addr-addr-in').value=a.address;
+  document.getElementById('addr-watch').checked=!!a.watch;
+  document.getElementById('m-addr-title').textContent='Adresse bearbeiten';
+  openModal('m-addr');
+}
+async function saveAddr(){
+  if(!proj)return;
+  const editId=document.getElementById('addr-edit-id').value;
+  const label=document.getElementById('addr-label-in').value.trim();
+  const address=document.getElementById('addr-addr-in').value.trim();
   const watch=document.getElementById('addr-watch').checked;
-  if(!label||!address){toast('Alle Felder ausfüllen');return}
-  const {error}=await db.from('addresses').insert({project_id:currentProject.id,label,address,watch});
-  if(error){toast('Fehler: '+error.message);return}
-  closeModal('modal-address');
+  if(!label||!address){toast('Bitte alle Felder ausfüllen');return;}
+  let error;
+  if(editId){
+    ({error}=await db.from('addresses').update({label,address,watch}).eq('id',editId));
+  } else {
+    ({error}=await db.from('addresses').insert({project_id:proj.id,label,address,watch}));
+  }
+  if(error){toast('Fehler: '+error.message);return;}
+  closeModal('m-addr');
 }
-async function deleteAddress(id){
-  await db.from('addresses').delete().eq('id',id);
+async function delAddr(id){
+  const {error}=await db.from('addresses').delete().eq('id',id);
+  if(error) toast('Fehler: '+error.message);
 }
 
-// GPS
+// ── GPS ───────────────────────────────────────────────────
 function haversine(la1,lo1,la2,lo2){
   const R=6371,dL=(la2-la1)*Math.PI/180,dO=(lo2-lo1)*Math.PI/180;
   const a=Math.sin(dL/2)**2+Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(dO/2)**2;
@@ -515,102 +727,144 @@ async function geocode(addr){
   try{
     const r=await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(addr)}&format=json&limit=1`,{headers:{'User-Agent':'BaukostenTracker/1.0'}});
     const d=await r.json();
-    if(d[0])return{lat:parseFloat(d[0].lat),lon:parseFloat(d[0].lon)};
-  }catch{}return null;
+    if(d&&d[0]) return{lat:parseFloat(d[0].lat),lon:parseFloat(d[0].lon)};
+  }catch(e){}
+  return null;
 }
-async function findNearbyAddress(){
-  if(!currentProject){toast('Bitte erst Projekt auswählen');return}
-  const watchAddrs=addresses.filter(a=>a.watch);
-  if(!watchAddrs.length){toast('Keine „Frag mich"-Adressen hinterlegt');return}
-  if(!navigator.geolocation){toast('GPS nicht verfügbar');return}
+async function findNearby(){
+  if(!proj){toast('Bitte erst Projekt auswählen');return;}
+  const wa=addresses.filter(a=>a.watch);
+  if(!wa.length){toast('Keine „Frag mich"-Adressen hinterlegt');return;}
+  if(!navigator.geolocation){toast('GPS nicht verfügbar');return;}
   toast('GPS wird ermittelt…');
   navigator.geolocation.getCurrentPosition(async pos=>{
     const{latitude:lat,longitude:lon}=pos.coords;
-    let found=null,minDist=999;
-    for(const a of watchAddrs){
-      const geo=await geocode(a.address);
-      if(!geo)continue;
-      const d=haversine(lat,lon,geo.lat,geo.lon);
-      if(d<minDist){minDist=d;found=a}
+    let found=null,minD=999;
+    for(const a of wa){
+      const g=await geocode(a.address);
+      if(!g) continue;
+      const d=haversine(lat,lon,g.lat,g.lon);
+      if(d<minD){minD=d;found=a;}
     }
-    if(found&&minDist<1){
+    if(found&&minD<1){
       document.getElementById('nearby-content').innerHTML=`
-        <p style="font-size:14px;margin-bottom:16px">Du bist ca. <strong>${(minDist*1000).toFixed(0)}m</strong> von <strong>${found.label}</strong> entfernt.</p>
+        <p style="font-size:14px;margin-bottom:16px">Du bist ca. <strong>${(minD*1000).toFixed(0)}m</strong> von <strong>${found.label}</strong> entfernt.</p>
         <p style="font-size:14px;margin-bottom:16px">Fahrt hierher erfassen?</p>
         <div style="display:flex;gap:8px">
-          <button class="btn btn-secondary" style="flex:1" onclick="closeModal('modal-nearby')">Nein</button>
-          <button class="btn btn-primary" style="flex:1" onclick="closeModal('modal-nearby');openTripTo('${found.address}')">Ja</button>
+          <button class="btn btn-secondary" style="flex:1" onclick="closeModal('m-nearby')">Nein</button>
+          <button class="btn btn-primary" style="flex:1" onclick="closeModal('m-nearby');openTripTo('${esc(found.address)}')">Ja</button>
         </div>`;
-      openModal('modal-nearby');
-    }else toast('Keine markierte Adresse in der Nähe');
+      openModal('m-nearby');
+    } else {
+      toast('Keine markierte Adresse in der Nähe (< 1 km)');
+    }
   },()=>toast('GPS-Zugriff verweigert'));
 }
-function openTripTo(dest){openAddTrip();document.getElementById('trip-dest').value=dest;}
+function openTripTo(dest){openAddTrip();document.getElementById('trip-to').value=dest;}
 
-function renderOverview(){
-  const el=document.getElementById('overview-content');
-  if(!currentProject){el.innerHTML='<div class="empty">Bitte erst Projekt auswählen</div>';return}
-  const total=invoices.reduce((s,i)=>s+Number(i.amount_gross),0);
-  const arbeit=invoices.filter(i=>i.cost_type==='Arbeitslohn').reduce((s,i)=>s+Number(i.amount_gross),0);
-  const mat=invoices.filter(i=>i.cost_type==='Material').reduce((s,i)=>s+Number(i.amount_gross),0);
-  const totalKm=trips.reduce((s,t)=>s+Number(t.distance_km),0);
-  const clKm=trips.filter(t=>t.driver==='CL').reduce((s,t)=>s+Number(t.distance_km),0);
-  const ylKm=trips.filter(t=>t.driver==='YL').reduce((s,t)=>s+Number(t.distance_km),0);
-  el.innerHTML=`
-    <div class="card">
-      <div class="card-title">💶 Kosten – ${currentProject.name}</div>
-      <div class="stat-grid">
-        <div class="stat"><div class="stat-label">Gesamt</div><div class="stat-val blue">${total.toLocaleString('de-DE',{style:'currency',currency:'EUR'})}</div></div>
-        <div class="stat"><div class="stat-label">Rechnungen</div><div class="stat-val">${invoices.length}</div></div>
-        <div class="stat"><div class="stat-label">Arbeitslohn</div><div class="stat-val amber">${arbeit.toLocaleString('de-DE',{style:'currency',currency:'EUR'})}</div></div>
-        <div class="stat"><div class="stat-label">Material</div><div class="stat-val green">${mat.toLocaleString('de-DE',{style:'currency',currency:'EUR'})}</div></div>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-title">🚗 Fahrten</div>
-      <div class="stat-grid">
-        <div class="stat"><div class="stat-label">Gesamt km</div><div class="stat-val blue">${totalKm.toFixed(1)} km</div></div>
-        <div class="stat"><div class="stat-label">Fahrten</div><div class="stat-val">${trips.length}</div></div>
-        <div class="stat"><div class="stat-label">CL</div><div class="stat-val">${clKm.toFixed(1)} km</div></div>
-        <div class="stat"><div class="stat-label">YL</div><div class="stat-val">${ylKm.toFixed(1)} km</div></div>
-      </div>
-    </div>`;
+// ── SETTINGS ──────────────────────────────────────────────
+function openSettings(){
+  document.getElementById('set-key').value=localStorage.getItem('anthropic_key')||'';
+  document.getElementById('set-home').value=localStorage.getItem('home_address')||'';
+  openModal('m-settings');
+}
+function saveSettings(){
+  localStorage.setItem('anthropic_key',document.getElementById('set-key').value.trim());
+  localStorage.setItem('home_address',document.getElementById('set-home').value.trim());
+  closeModal('m-settings');toast('Einstellungen gespeichert');
 }
 
+// ── EXPORTS ───────────────────────────────────────────────
 function exportCSV(){
-  if(!currentProject)return;
-  let csv='Typ;Datum;Lieferant/Von;Nach;Betrag/km;Kostenstelle/Fahrer\n';
-  invoices.forEach(i=>csv+=`Rechnung;${i.date};${i.supplier};;${Number(i.amount_gross).toFixed(2)} EUR;${i.cost_type}\n`);
-  trips.forEach(t=>csv+=`Fahrt;${t.date};${t.origin};${t.destination};${Number(t.distance_km).toFixed(1)} km;${t.driver}\n`);
-  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));a.download=`${currentProject.name}_Export.csv`;a.click();
+  if(!proj){toast('Kein Projekt ausgewählt');return;}
+  let csv='Typ;Datum;Von/Lieferant;Nach;Betrag/km;Kategorie/Fahrer;Grund\n';
+  invoices.forEach(i=>csv+=`Rechnung;${i.date||''};${i.supplier||''};;${Number(i.amount_gross).toFixed(2)} EUR;${i.cost_type};\n`);
+  trips.forEach(t=>csv+=`Fahrt;${t.date||''};${t.origin};${t.destination};${Number(t.distance_km).toFixed(1)} km;${t.driver};${t.reason||''}\n`);
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));
+  a.download=`${proj.name}_Export.csv`;a.click();
   toast('CSV exportiert');
 }
 async function exportZIP(){
-  if(!currentProject)return;
-  const s=document.createElement('script');
-  s.src='https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
-  s.onload=async()=>{
-    const zip=new JSZip();
-    let csv='Typ;Datum;Lieferant/Von;Nach;Betrag/km;Kostenstelle/Fahrer\n';
-    invoices.forEach(i=>csv+=`Rechnung;${i.date};${i.supplier};;${Number(i.amount_gross).toFixed(2)} EUR;${i.cost_type}\n`);
-    trips.forEach(t=>csv+=`Fahrt;${t.date};${t.origin};${t.destination};${Number(t.distance_km).toFixed(1)} km;${t.driver}\n`);
-    zip.file('Übersicht.csv','\uFEFF'+csv);
-    const folder=zip.folder('Rechnungen');
-    for(const inv of invoices){
-      if(inv.pdf_path){
-        try{const{data}=await db.storage.from('rechnungen').download(inv.pdf_path);if(data)folder.file(inv.pdf_path.split('/').pop(),data)}catch{}
-      }
+  if(!proj){toast('Kein Projekt ausgewählt');return;}
+  if(typeof JSZip==='undefined'){toast('JSZip nicht geladen – bitte Seite neu laden');return;}
+  const zip=new JSZip();
+  let csv='Typ;Datum;Von/Lieferant;Nach;Betrag/km;Kategorie/Fahrer;Grund\n';
+  invoices.forEach(i=>csv+=`Rechnung;${i.date||''};${i.supplier||''};;${Number(i.amount_gross).toFixed(2)} EUR;${i.cost_type};\n`);
+  trips.forEach(t=>csv+=`Fahrt;${t.date||''};${t.origin};${t.destination};${Number(t.distance_km).toFixed(1)} km;${t.driver};${t.reason||''}\n`);
+  zip.file('Übersicht.csv','\uFEFF'+csv);
+  const folder=zip.folder('Rechnungen');
+  for(const inv of invoices){
+    if(inv.pdf_path){
+      try{
+        const {data}=await db.storage.from('rechnungen').download(inv.pdf_path);
+        if(data) folder.file(inv.pdf_path.split('/').pop(),data);
+      }catch(e){}
     }
-    const blob=await zip.generateAsync({type:'blob'});
-    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`${currentProject.name}_Komplett.zip`;a.click();
-    toast('ZIP exportiert');
-  };
-  document.head.appendChild(s);
+  }
+  const blob=await zip.generateAsync({type:'blob'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`${proj.name}_Komplett.zip`;a.click();
+  toast('ZIP exportiert');
+}
+function exportPDF(){
+  if(!proj){toast('Kein Projekt ausgewählt');return;}
+  if(typeof window.jspdf==='undefined'){toast('jsPDF nicht geladen – bitte Seite neu laden');return;}
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({unit:'mm',format:'a4'});
+  const {pp,notary,court,broker,invTotal,totalCosts,sale,grossProfit,tax,netProfit}=calcDetail();
+  const totalKm=trips.reduce((s,t)=>s+Number(t.distance_km||0),0);
+  let y=20;
+  const newPage=()=>{doc.addPage();y=20;};
+  const chk=()=>{if(y>272) newPage();};
+  const hd=(txt,sz=13)=>{chk();doc.setFontSize(sz);doc.setFont('helvetica','bold');doc.text(txt,14,y);y+=sz*0.45+3;};
+  const row=(l,r,bold=false)=>{chk();doc.setFontSize(10);doc.setFont('helvetica',bold?'bold':'normal');doc.text(String(l),14,y);doc.text(String(r),196,y,{align:'right'});y+=6;};
+  const sep=()=>{chk();doc.setDrawColor(210);doc.line(14,y,196,y);y+=4;};
+
+  hd(`Baukosten-Tracker – ${proj.name}`,15);
+  doc.setFontSize(9);doc.setFont('helvetica','normal');doc.text(new Date().toLocaleDateString('de-DE'),14,y);y+=8;
+  sep();
+  hd('Kostenübersicht');
+  row('Kaufpreis',fmt(pp));
+  row('Notarkosten (1,5%)',fmt(notary));
+  row('Gerichtskosten (0,5%)',fmt(court));
+  row('Maklercourtage (3,57%)',fmt(broker));
+  row('Umbaukosten gesamt',fmt(invTotal));
+  sep();
+  row('Gesamtausgaben',fmt(totalCosts),true);
+  y+=4;
+  if(sale>0){
+    hd('Ergebnis');
+    row('Verkaufspreis',fmt(sale));
+    row('Bruttogewinn',fmt(grossProfit));
+    row('Steuern (50%)',fmt(tax));
+    sep();
+    row('Gewinn nach Steuern',fmt(netProfit),true);
+    y+=4;
+  }
+  if(invoices.length){
+    chk();hd('Rechnungen');
+    invoices.forEach(inv=>{
+      chk();
+      const ds=inv.date?new Date(inv.date).toLocaleDateString('de-DE'):'–';
+      row(`${ds}  ${inv.supplier||'–'}  [${inv.cost_type}]`,fmt(inv.amount_gross));
+    });
+    y+=4;
+  }
+  if(trips.length){
+    chk();hd('Fahrten');
+    row('Gesamt km',totalKm.toFixed(1)+' km',true);
+    trips.forEach(t=>{
+      chk();
+      const ds=t.date?new Date(t.date).toLocaleDateString('de-DE'):'–';
+      const reason=t.reason?` (${t.reason})`:'';
+      row(`${ds}  ${t.driver}: ${t.origin} → ${t.destination}${reason}`,Number(t.distance_km).toFixed(1)+' km');
+    });
+  }
+  doc.save(`${proj.name}_Bericht.pdf`);
+  toast('PDF erstellt');
 }
 
-const today=()=>new Date().toISOString().split('T')[0];
-
-// Init
+// ── INIT ──────────────────────────────────────────────────
 loadProjects();
 initRealtime();
 </script>
