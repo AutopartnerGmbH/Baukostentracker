@@ -217,7 +217,8 @@ input:focus,select:focus{border-color:var(--accent)}
 <!-- MODAL: Fahrt -->
 <div class="modal-overlay" id="m-trip">
   <div class="modal">
-    <div class="modal-title">Fahrt erfassen <button class="btn btn-secondary btn-sm" onclick="closeModal('m-trip')">✕</button></div>
+    <div class="modal-title"><span id="m-trip-title">Fahrt erfassen</span><button class="btn btn-secondary btn-sm" onclick="closeModal('m-trip')">✕</button></div>
+    <input type="hidden" id="trip-edit-id">
     <label>Datum</label>
     <input type="date" id="trip-date">
     <label>Fahrer</label>
@@ -731,6 +732,10 @@ function renderTrips(){
       <div style="text-align:right;flex-shrink:0;min-width:68px">
         <div style="font-size:13px;font-weight:600">${fmtKm(km)}</div>
         <div style="font-size:11px;color:var(--success)">${fmt(p)}</div>
+        <div style="display:flex;gap:3px;margin-top:4px;justify-content:flex-end">
+          <button class="btn btn-secondary btn-sm" onclick="editTrip('${t.id}')">✏️</button>
+          <button class="btn btn-danger btn-sm" onclick="confirmDeleteTrip('${t.id}')">🗑️</button>
+        </div>
       </div>
     </div>`;
   }).join('');
@@ -771,9 +776,11 @@ function renderAddrPills(){
 const setField=(id,val)=>{document.getElementById(id).value=val;};
 function openAddTrip(){
   if(!proj){toast('Bitte erst Projekt auswählen');return;}
+  document.getElementById('m-trip-title').textContent='Fahrt erfassen';
+  document.getElementById('trip-edit-id').value='';
   document.getElementById('trip-date').value=today();
   document.getElementById('trip-drv').value='CL';
-  document.querySelectorAll('#m-trip .pill').forEach((p,i)=>p.classList.toggle('on',i===0));
+  document.querySelectorAll('#m-trip .pill').forEach((p,i)=>{p.classList.toggle('on',i===0);p.style.opacity='1';p.style.pointerEvents='auto';});
   document.getElementById('trip-from').value=localStorage.getItem('home_address')||'';
   document.getElementById('trip-to').value='';
   document.getElementById('trip-reason').value='';
@@ -781,6 +788,36 @@ function openAddTrip(){
   document.getElementById('km-bar').style.display='none';
   renderAddrPills();
   openModal('m-trip');
+}
+function editTrip(id){
+  const t=trips.find(x=>x.id===id);if(!t)return;
+  document.getElementById('m-trip-title').textContent='Fahrt bearbeiten';
+  document.getElementById('trip-edit-id').value=id;
+  document.getElementById('trip-date').value=t.date||today();
+  document.getElementById('trip-drv').value=t.driver||'CL';
+  document.querySelectorAll('#m-trip .pill').forEach(p=>{
+    const isBothPill=p.textContent.trim()==='CL + YL';
+    p.classList.toggle('on',p.textContent.trim()===t.driver);
+    // Disable BOTH pill when editing – would create new rows instead of updating
+    p.style.opacity=isBothPill?'0.35':'1';
+    p.style.pointerEvents=isBothPill?'none':'auto';
+  });
+  document.getElementById('trip-from').value=t.origin||'';
+  document.getElementById('trip-to').value=t.destination||'';
+  document.getElementById('trip-reason').value=t.reason||'';
+  document.getElementById('trip-km').value=t.distance_km||'';
+  document.getElementById('km-bar').style.display='none';
+  renderAddrPills();
+  openModal('m-trip');
+}
+function confirmDeleteTrip(id){
+  const t=trips.find(x=>x.id===id);if(!t)return;
+  confirmAction('Fahrt löschen',`Fahrt "${t.origin} → ${t.destination}" wirklich löschen?`,()=>deleteTrip(id));
+}
+async function deleteTrip(id){
+  const {error}=await db.from('trips').delete().eq('id',id);
+  if(error){toast('Fehler: '+error.message);return;}
+  toast('Fahrt gelöscht');
 }
 async function calcKm(){
   const from=document.getElementById('trip-from').value.trim();
@@ -804,6 +841,7 @@ async function calcKm(){
 }
 async function saveTrip(){
   if(!proj)return;
+  const editId=document.getElementById('trip-edit-id').value;
   const date=document.getElementById('trip-date').value;
   const driver=document.getElementById('trip-drv').value;
   const origin=document.getElementById('trip-from').value.trim();
@@ -811,7 +849,10 @@ async function saveTrip(){
   const reason=document.getElementById('trip-reason').value.trim()||null;
   const km=parseFloat(document.getElementById('trip-km').value);
   if(!date||!origin||!destination||isNaN(km)||km<=0){toast('Bitte alle Felder ausfüllen');return;}
-  if(driver==='BOTH'){
+  if(editId){
+    const {error}=await db.from('trips').update({date,driver,origin,destination,distance_km:km,reason}).eq('id',editId);
+    if(error){toast('Fehler: '+error.message);return;}
+  } else if(driver==='BOTH'){
     const {error:e1}=await db.from('trips').insert({project_id:proj.id,date,driver:'CL',origin,destination,distance_km:km,reason});
     if(e1){toast('Fehler (CL): '+e1.message);return;}
     const {error:e2}=await db.from('trips').insert({project_id:proj.id,date,driver:'YL',origin,destination,distance_km:km,reason});
@@ -821,7 +862,7 @@ async function saveTrip(){
     if(error){toast('Fehler: '+error.message);return;}
   }
   closeModal('m-trip');
-  toast('Fahrt gespeichert');
+  toast(editId?'Fahrt aktualisiert':'Fahrt gespeichert');
 }
 function openAddAddr(){
   if(!proj){toast('Bitte erst Projekt auswählen');return;}
